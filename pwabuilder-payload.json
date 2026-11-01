@@ -38,7 +38,7 @@
   },
   "signingMode": "new",
   "splashScreenFadeOutDuration": 300,
-  "startUrl": "/",
+  "startUrl": "/meu-rewards/",
   "themeColor": "#0067b8",
   "themeColorDark": "#0067b8",
   "webManifestUrl": "https://williamcar59-prog.github.io/meu-rewards/manifest.webmanifest",
