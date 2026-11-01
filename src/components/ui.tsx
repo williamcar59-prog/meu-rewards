@@ -89,9 +89,6 @@ export function Empty({
 export const fmtPoints = (n: number): string =>
   Math.round(n).toLocaleString('pt-BR')
 
-export const fmtBRL = (n: number): string =>
-  n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
 export const fmtDateShort = (iso: string): string => {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y.slice(2)}`

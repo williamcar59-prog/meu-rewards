@@ -1,8 +1,8 @@
-// Página: Resgates — histórico em R$ e valor do ponto
+// Página: Resgates — histórico em pontos
 
 import { useStore } from '../store'
-import { pointValueBRL, redeemSummary } from '../utils/calc'
-import { fmtBRL, fmtPoints, StatCard, Empty } from '../components/ui'
+import { redeemSummary } from '../utils/calc'
+import { fmtPoints, StatCard, Empty } from '../components/ui'
 import { fmtDate } from '../utils/dates'
 import { IconGift } from '../components/Icons'
 
@@ -15,7 +15,6 @@ export function RedeemsPage() {
     .sort((a, b) => (a.date < b.date ? 1 : -1))
 
   const total = redeemSummary(data, null)
-  const perPoint = pointValueBRL(data)
 
   return (
     <div>
@@ -26,14 +25,10 @@ export function RedeemsPage() {
         <StatCard
           label="Total resgatado"
           value={fmtPoints(total.totalPoints)}
-          sub={`${total.count} resgate(s)`}
+          sub="pontos"
         />
-        <StatCard label="Valor total" value={fmtBRL(total.totalValue)} sub="convertido em BRL" />
-        <StatCard
-          label="Valor médio do ponto"
-          value={perPoint !== null ? perPoint.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4 }) : '—'}
-          sub={perPoint !== null ? 'por ponto resgatado' : 'registre um resgate com valor'}
-        />
+        <StatCard label="Quantidade" value={`${total.count}`} sub="resgate(s)" />
+        <StatCard label="Média por resgate" value={total.count > 0 ? fmtPoints(total.totalPoints / total.count) : '—'} sub="pontos" />
       </div>
 
       <div className="card section-gap" style={{ paddingTop: 6, paddingBottom: 6 }}>
@@ -46,7 +41,6 @@ export function RedeemsPage() {
         ) : (
           redeems.map((e) => {
             const acc = data.accounts.find((a) => a.id === e.accountId)
-            const rate = acc?.currency === 'USD' ? data.settings.usdBrlRate : 1
             return (
               <div key={e.id} className="entry">
                 <span className="entry-points neg">−{fmtPoints(e.points)}</span>
@@ -55,16 +49,10 @@ export function RedeemsPage() {
                   {acc && (
                     <>
                       {' '}
-                      <span className="muted">
-                        · {acc.name}
-                        {acc.currency === 'USD' && ` (US$ ${e.value?.toFixed(2)} → ${fmtBRL((e.value ?? 0) * rate)})`}
-                      </span>
+                      <span className="muted">· {acc.name}</span>
                     </>
                   )}
                 </span>
-                {acc?.currency === 'BRL' && e.value !== undefined && (
-                  <span className="entry-date">{fmtBRL(e.value)}</span>
-                )}
                 <span className="entry-date">{fmtDate(e.date)}</span>
               </div>
             )

@@ -10,8 +10,10 @@ import {
   Task,
   defaultTasks,
   emptyData,
+  normalizeData,
   uid,
 } from './types'
+import { GamePassPlan } from './data/rewardsTable'
 import {
   clearSyncHandle,
   getSyncHandle,
@@ -24,6 +26,7 @@ import {
   writeToFile,
 } from './utils/storage'
 import { todayISO } from './utils/dates'
+import { cycleDayFor, taskPoints } from './utils/calc'
 
 interface StoreValue {
   data: AppData
@@ -31,7 +34,13 @@ interface StoreValue {
   syncFileName: string | null
   syncError: string | null
   update: (fn: (draft: AppData) => AppData) => void
-  addAccount: (name: string, region: string, currency: 'BRL' | 'USD') => Account
+  addAccount: (
+    name: string,
+    region: string,
+    plan: GamePassPlan,
+    openingBalance: number,
+    openingStreak: number,
+  ) => Account
   updateAccount: (id: string, patch: Partial<Account>) => void
   deleteAccount: (id: string) => void
   addEntry: (entry: Omit<Entry, 'id' | 'createdAt'>) => void
@@ -70,13 +79,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const fileData = await readFromFile(handle)
           // usa o arquivo se for mais recente que o local
           if (fileData && (!local || fileData.updatedAt > local.updatedAt)) {
-            next = { ...fileData, settings: { ...emptyData().settings, ...fileData.settings } }
+            next = fileData
           }
         }
       }
       if (cancelled) return
       if (next) {
-        setData({ ...emptyData(), ...next, settings: { ...emptyData().settings, ...next.settings } })
+        setData(normalizeData(next))
       }
       setSyncFileName(fileName)
       setReady(true)
@@ -126,12 +135,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // ----- ações -----
 
   const addAccount = useCallback(
-    (name: string, region: string, currency: 'BRL' | 'USD'): Account => {
+    (
+      name: string,
+      region: string,
+      plan: GamePassPlan,
+      openingBalance: number,
+      openingStreak: number,
+    ): Account => {
       const account: Account = {
         id: uid(),
         name,
         region,
-        currency,
+        plan,
+        openingBalance: Math.max(0, Math.round(openingBalance)),
+        openingStreak: Math.max(0, Math.round(openingStreak)),
         color: ACCOUNT_COLORS[Math.floor(Math.random() * ACCOUNT_COLORS.length)],
         goal: null,
         tasks: defaultTasks(),
@@ -194,6 +211,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (existing) {
           return { ...d, entries: d.entries.filter((e) => e.id !== existing.id) }
         }
+        const account = d.accounts.find((a) => a.id === accountId)
+        const plan = account?.plan ?? 'NONE'
+        const cycleDay = cycleDayFor(d, accountId, date)
+        const pts = taskPoints(task, plan, cycleDay)
         return {
           ...d,
           entries: [
@@ -202,7 +223,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               id: uid(),
               accountId,
               type: 'earn' as const,
-              points: task.points,
+              points: pts,
               label: task.name,
               date,
               createdAt: new Date().toISOString(),
@@ -225,8 +246,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const importData = useCallback(
     (incoming: AppData) => {
-      setData({ ...emptyData(), ...incoming, updatedAt: new Date().toISOString() })
-      void persist({ ...emptyData(), ...incoming, updatedAt: new Date().toISOString() })
+      const normalized = normalizeData({ ...incoming, updatedAt: new Date().toISOString() })
+      setData(normalized)
+      void persist(normalized)
     },
     [persist],
   )

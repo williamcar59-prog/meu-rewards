@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store'
 import { Account, AppData, Frequency, Task, uid } from '../types'
+import { GamePassPlan, PLAN_LABELS } from '../data/rewardsTable'
 import { Field, Modal } from '../components/ui'
 import { IconPlus, IconTrash } from '../components/Icons'
 import {
@@ -53,7 +54,7 @@ function AccountsSection() {
           <span className="entry-label">
             <strong>{acc.name}</strong>{' '}
             <span className="muted">
-              · {acc.region} · {acc.tasks.filter((t) => t.enabled).length} tarefas ativas
+              · {acc.region} · {PLAN_LABELS[acc.plan]} · {acc.tasks.filter((t) => t.enabled).length} tarefas ativas
             </span>
           </span>
           <button className="btn small" onClick={() => setEditingTasks(acc)}>
@@ -93,8 +94,8 @@ function AccountsSection() {
       {showAdd && (
         <AddSimpleAccountModal
           onClose={() => setShowAdd(false)}
-          onAdd={(name, region) => {
-            addAccount(name, region, region === 'EUA' ? 'USD' : 'BRL')
+          onAdd={(name, region, plan, openingBalance, openingStreak) => {
+            addAccount(name, region, plan, openingBalance, openingStreak)
             setShowAdd(false)
           }}
         />
@@ -118,10 +119,23 @@ function AddSimpleAccountModal({
   onAdd,
 }: {
   onClose: () => void
-  onAdd: (name: string, region: string) => void
+  onAdd: (
+    name: string,
+    region: string,
+    plan: GamePassPlan,
+    openingBalance: number,
+    openingStreak: number,
+  ) => void
 }) {
   const [name, setName] = useState('')
   const [region, setRegion] = useState('Brasil')
+  const [plan, setPlan] = useState<GamePassPlan>('NONE')
+  const [balance, setBalance] = useState('')
+  const [streak, setStreak] = useState('')
+
+  const submit = () =>
+    name.trim() && onAdd(name.trim(), region, plan, Number(balance) || 0, Number(streak) || 0)
+
   return (
     <Modal title="Nova conta" onClose={onClose}>
       <Field label="Nome da conta">
@@ -140,11 +154,27 @@ function AddSimpleAccountModal({
           <option>Outro</option>
         </select>
       </Field>
+      <Field label="Plano do Game Pass">
+        <select value={plan} onChange={(e) => setPlan(e.target.value as GamePassPlan)}>
+          <option value="NONE">Sem Game Pass</option>
+          <option value="ESSENTIAL">Game Pass Essential</option>
+          <option value="PREMIUM">Game Pass Premium</option>
+          <option value="ULTIMATE">Game Pass Ultimate</option>
+        </select>
+      </Field>
+      <div className="grid grid-2" style={{ gap: 12 }}>
+        <Field label="Saldo atual (pontos)">
+          <input type="number" min={0} value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0" />
+        </Field>
+        <Field label="Sequência atual (dias)">
+          <input type="number" min={0} value={streak} onChange={(e) => setStreak(e.target.value)} placeholder="0" />
+        </Field>
+      </div>
       <div className="modal-actions">
         <button className="btn" onClick={onClose}>
           Cancelar
         </button>
-        <button className="btn primary" onClick={() => name.trim() && onAdd(name.trim(), region)}>
+        <button className="btn primary" onClick={submit} disabled={!name.trim()}>
           Criar
         </button>
       </div>
@@ -182,13 +212,23 @@ function TasksModal({
             onChange={(e) => patch(t.id, { name: e.target.value })}
             style={{ flex: 2 }}
           />
-          <input
-            type="number"
-            min={0}
-            value={t.points}
-            onChange={(e) => patch(t.id, { points: Number(e.target.value) })}
-            style={{ flex: '0 0 84px', textAlign: 'right' }}
-          />
+          {t.builtin ? (
+            <span
+              className="muted"
+              style={{ flex: '0 0 84px', textAlign: 'right', fontSize: 12 }}
+              title="Pontos definidos pela tabela (plano/dia do ciclo)"
+            >
+              tabela
+            </span>
+          ) : (
+            <input
+              type="number"
+              min={0}
+              value={t.points}
+              onChange={(e) => patch(t.id, { points: Number(e.target.value) })}
+              style={{ flex: '0 0 84px', textAlign: 'right' }}
+            />
+          )}
           <select
             value={t.frequency}
             onChange={(e) => patch(t.id, { frequency: e.target.value as Frequency })}
@@ -256,17 +296,6 @@ function AppearanceSection({
         >
           🌙 Escuro
         </button>
-      </div>
-      <div style={{ marginTop: 14, maxWidth: 260 }}>
-        <Field label="Cotação USD → BRL (para resgates em dólar)">
-          <input
-            type="number"
-            step="0.01"
-            min={0}
-            value={data.settings.usdBrlRate}
-            onChange={(e) => setSettings({ usdBrlRate: Number(e.target.value) || 0 })}
-          />
-        </Field>
       </div>
     </div>
   )

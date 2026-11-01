@@ -46,7 +46,7 @@ export function StatsOverviewPage() {
         <StatCard label="Média diária (7 dias)" value={`${avg7.toFixed(1)}`} sub="pontos/dia somando contas" />
         <StatCard label="Média diária (30 dias)" value={`${avg30.toFixed(1)}`} sub="pontos/dia somando contas" />
         <StatCard label="Categorias (30 dias)" value={`${cats.length}`} sub="fontes de pontos distintas" />
-        <StatCard label="Resgates" value={`${redeems.count}`} sub={`R$ ${redeems.totalValue.toFixed(2)} no total`} />
+        <StatCard label="Resgates" value={`${redeems.count}`} sub={`${fmtPoints(redeems.totalPoints)} pts no total`} />
       </div>
 
       <div className="card section-gap">

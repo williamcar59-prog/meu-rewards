@@ -1,6 +1,7 @@
-// Cálculos de domínio: saldo, metas, previsão, streak, agregados
+// Cálculos de domínio: saldo, metas, previsão, streak, ciclo de 7 dias, agregados
 
-import { Account, AppData, Entry } from '../types'
+import { Account, AppData, Entry, Task } from '../types'
+import { builtinPoints, GamePassPlan } from '../data/rewardsTable'
 import { addDays, daysBetween, monthStart, todayISO, weekStart } from './dates'
 
 export function accountEntries(data: AppData, accountId: string): Entry[] {
@@ -8,7 +9,8 @@ export function accountEntries(data: AppData, accountId: string): Entry[] {
 }
 
 export function balanceOf(data: AppData, accountId: string): number {
-  let b = 0
+  const account = data.accounts.find((a) => a.id === accountId)
+  let b = account?.openingBalance ?? 0
   for (const e of data.entries) {
     if (e.accountId !== accountId) continue
     b += e.type === 'earn' ? e.points : -e.points
@@ -60,62 +62,110 @@ export function goalForecast(data: AppData, account: Account): GoalForecast | nu
   }
 }
 
-export interface StreakInfo {
-  current: number // dias consecutivos com checklist completo (hoje ou desde ontem)
-  best: number
-  todayDone: boolean
-}
+// ---------------------------------------------------------------- Checklist / streak / ciclo
 
-/** Streak = dias consecutivos em que TODAS as tarefas diárias habilitadas foram marcadas */
-export function streakOf(data: AppData, accountId: string): StreakInfo {
+function makeDayComplete(data: AppData, accountId: string): (iso: string) => boolean {
   const account = data.accounts.find((a) => a.id === accountId)
   const dailyTasks = account?.tasks.filter((t) => t.enabled && t.frequency === 'daily') ?? []
-  const today = todayISO()
-
-  // contar tarefas marcadas por dia
   const tasksPerDay = new Map<string, Set<string>>()
   for (const e of data.entries) {
     if (e.accountId !== accountId || e.type !== 'earn' || e.source !== 'checklist' || !e.taskId) continue
     if (!tasksPerDay.has(e.date)) tasksPerDay.set(e.date, new Set())
     tasksPerDay.get(e.date)!.add(e.taskId)
   }
-
-  const dayComplete = (iso: string): boolean => {
+  return (iso: string): boolean => {
     if (dailyTasks.length === 0) return false
     const set = tasksPerDay.get(iso)
     if (!set) return false
     return dailyTasks.every((t) => set.has(t.id))
   }
+}
+
+/**
+ * Dias consecutivos completos estritamente ANTES de `beforeDate`,
+ * caminhando até `createdAt`. Se todos os dias rastreados estiverem
+ * completos, soma a `openingStreak` (dias anteriores ao cadastro).
+ */
+function streakEndingBefore(
+  dayComplete: (iso: string) => boolean,
+  createdAt: string,
+  beforeDate: string,
+  openingStreak: number,
+): number {
+  if (beforeDate <= createdAt) return 0
+  let count = 0
+  let cursor = addDays(beforeDate, -1)
+  while (cursor >= createdAt && dayComplete(cursor)) {
+    count++
+    cursor = addDays(cursor, -1)
+  }
+  if (cursor < createdAt) count += openingStreak
+  return count
+}
+
+/** Dia do ciclo de 7 dias (1..7) para uma data — usado nas tarefas do Bing */
+export function cycleDayFor(data: AppData, accountId: string, date: string): number {
+  const account = data.accounts.find((a) => a.id === accountId)
+  if (!account) return 1
+  const dayComplete = makeDayComplete(data, accountId)
+  const streakBefore = streakEndingBefore(
+    dayComplete,
+    account.createdAt,
+    date,
+    account.openingStreak,
+  )
+  return (streakBefore % 7) + 1
+}
+
+export interface StreakInfo {
+  current: number // dias consecutivos completos (inclui openingStreak)
+  best: number
+  todayDone: boolean
+  cycleDay: number // dia do ciclo de 7 (1..7) para hoje
+}
+
+export function streakOf(data: AppData, accountId: string): StreakInfo {
+  const account = data.accounts.find((a) => a.id === accountId)
+  const createdAt = account?.createdAt ?? todayISO()
+  const openingStreak = account?.openingStreak ?? 0
+  const dayComplete = makeDayComplete(data, accountId)
+  const today = todayISO()
 
   const todayDone = dayComplete(today)
 
-  // atual: começa hoje (se completo) ou ontem
-  let current = 0
-  let cursor = todayDone ? today : addDays(today, -1)
-  const firstDate = account?.createdAt ?? today
-  if (cursor >= firstDate || cursor === firstDate) {
-    while (cursor >= firstDate && dayComplete(cursor)) {
-      current++
-      cursor = addDays(cursor, -1)
-    }
-  }
+  // atual: inclui hoje (se completo) ou começa em ontem
+  const beforeDate = todayDone ? addDays(today, 1) : today
+  const current = streakEndingBefore(dayComplete, createdAt, beforeDate, openingStreak)
 
   // recorde
-  let best = 0
+  let best = openingStreak
   let run = 0
-  const totalDays = daysBetween(firstDate, today) + 1
+  const totalDays = daysBetween(createdAt, today) + 1
+  let leadingRun = 0
   for (let i = 0; i < totalDays; i++) {
-    const iso = addDays(firstDate, i)
+    const iso = addDays(createdAt, i)
     if (dayComplete(iso)) {
       run++
       if (run > best) best = run
+      if (i === leadingRun) leadingRun++
     } else {
       run = 0
     }
   }
+  // o primeiro trecho conecta com a sequência de abertura
+  if (leadingRun > 0) best = Math.max(best, openingStreak + leadingRun)
 
-  return { current, best, todayDone }
+  const cycleDay = (streakEndingBefore(dayComplete, createdAt, today, openingStreak) % 7) + 1
+
+  return { current, best, todayDone, cycleDay }
 }
+
+/** Pontos efetivos de uma tarefa (tabela para oficiais, valor fixo p/ personalizadas) */
+export function taskPoints(task: Task, plan: GamePassPlan, cycleDay: number): number {
+  return task.builtin ? builtinPoints(task.builtin, plan, cycleDay) : task.points
+}
+
+// ---------------------------------------------------------------- Agregados
 
 export function earnSum(data: AppData, accountId: string | null, from: string, to?: string): number {
   const end = to ?? todayISO()
@@ -144,31 +194,19 @@ export function earnSumMonth(data: AppData, accountId: string | null): number {
 
 export interface RedeemSummary {
   totalPoints: number
-  totalValue: number // convertido para BRL
   count: number
 }
 
 export function redeemSummary(data: AppData, accountId: string | null): RedeemSummary {
   let totalPoints = 0
-  let totalValue = 0
   let count = 0
   for (const e of data.entries) {
     if (e.type !== 'redeem') continue
     if (accountId !== null && e.accountId !== accountId) continue
     totalPoints += e.points
     count++
-    const acc = data.accounts.find((a) => a.id === e.accountId)
-    const rate = acc?.currency === 'USD' ? data.settings.usdBrlRate : 1
-    totalValue += (e.value ?? 0) * rate
   }
-  return { totalPoints, totalValue, count }
-}
-
-/** Valor médio de 1 ponto em BRL, com base nos resgates */
-export function pointValueBRL(data: AppData): number | null {
-  const s = redeemSummary(data, null)
-  if (s.totalPoints <= 0 || s.totalValue <= 0) return null
-  return s.totalValue / s.totalPoints
+  return { totalPoints, count }
 }
 
 export interface TimePoint {
@@ -176,30 +214,48 @@ export interface TimePoint {
   total: number
 }
 
-/** Série do saldo total ao longo do tempo (todos os dias desde o primeiro lançamento) */
+/** Série do saldo ao longo do tempo (considera saldo de abertura de cada conta) */
 export function balanceSeries(data: AppData, accountId: string | null): TimePoint[] {
-  const entries = data.entries
-    .filter((e) => accountId === null || e.accountId === accountId)
-    .slice()
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-  if (entries.length === 0) return []
+  const accounts = data.accounts.filter((a) => accountId === null || a.id === accountId)
+  if (accounts.length === 0) return []
 
-  const first = entries[0].date
+  const perAccount = accounts.map((acc) => {
+    const map = new Map<string, number>()
+    for (const e of data.entries) {
+      if (e.accountId !== acc.id) continue
+      const delta = e.type === 'earn' ? e.points : -e.points
+      map.set(e.date, (map.get(e.date) ?? 0) + delta)
+    }
+    return { acc, map }
+  })
+
   const today = todayISO()
-  const totalDays = daysBetween(first, today) + 1
-
-  const perDay = new Map<string, number>()
-  for (const e of entries) {
-    const delta = e.type === 'earn' ? e.points : -e.points
-    perDay.set(e.date, (perDay.get(e.date) ?? 0) + delta)
+  let start = today
+  for (const { acc, map } of perAccount) {
+    if (acc.createdAt < start) start = acc.createdAt
+    for (const k of map.keys()) if (k < start) start = k
   }
 
+  const totalDays = daysBetween(start, today) + 1
+  const running = new Map<string, number>()
+  const started = new Set<string>()
   const out: TimePoint[] = []
-  let acc = 0
+
   for (let i = 0; i < totalDays; i++) {
-    const iso = addDays(first, i)
-    acc += perDay.get(iso) ?? 0
-    out.push({ date: iso, total: acc })
+    const iso = addDays(start, i)
+    let dayTotal = 0
+    for (const { acc, map } of perAccount) {
+      if (!started.has(acc.id) && iso >= acc.createdAt) {
+        running.set(acc.id, acc.openingBalance ?? 0)
+        started.add(acc.id)
+      }
+      if (started.has(acc.id)) {
+        const next = running.get(acc.id)! + (map.get(iso) ?? 0)
+        running.set(acc.id, next)
+        dayTotal += next
+      }
+    }
+    out.push({ date: iso, total: dayTotal })
   }
   return out
 }

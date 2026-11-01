@@ -23,6 +23,7 @@ import {
   totalBalance,
 } from '../utils/calc'
 import { fmtDateShort, fmtPoints, StatCard } from '../components/ui'
+import { PLAN_LABELS } from '../data/rewardsTable'
 import { IconGift } from '../components/Icons'
 
 export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
@@ -71,7 +72,7 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
         <StatCard
           label="Este mês"
           value={fmtPoints(month)}
-          sub={`resgatado: R$ ${redeems.totalValue.toFixed(2)}`}
+          sub={`resgatado: ${fmtPoints(redeems.totalPoints)} pts`}
         />
       </div>
 
@@ -162,7 +163,7 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
               <div className="entry-label">
                 <strong>{acc.name}</strong>{' '}
                 <span className="muted">
-                  · {acc.region} · {streak.current > 0 ? `🔥 ${streak.current} dias` : 'sem streak'}
+                  · {acc.region} · {PLAN_LABELS[acc.plan]} · {streak.current > 0 ? `🔥 ${streak.current} dias` : 'sem streak'}
                 </span>
               </div>
               {fc && (

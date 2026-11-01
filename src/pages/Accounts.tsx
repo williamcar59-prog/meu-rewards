@@ -15,19 +15,29 @@ import {
 import { useStore } from '../store'
 import { Account, Task } from '../types'
 import {
+  GamePassPlan,
+  PLAN_LABELS,
+  TaskGroup,
+  builtinGroup,
+  groupLabel,
+  maxDailyPoints,
+} from '../data/rewardsTable'
+import {
   avgDailyEarn,
   balanceOf,
   balanceSeries,
   categoryEarns,
+  cycleDayFor,
   earnSumMonth,
   earnSumToday,
   earnSumWeek,
   goalForecast,
   redeemSummary,
   streakOf,
+  taskPoints,
 } from '../utils/calc'
 import { addDays, fmtDate, todayISO } from '../utils/dates'
-import { Empty, Field, fmtBRL, fmtPoints, Modal, Progress, StatCard } from '../components/ui'
+import { Empty, Field, fmtPoints, Modal, Progress, StatCard } from '../components/ui'
 import { IconCheck, IconFlame, IconPlus, IconTarget, IconTrash } from '../components/Icons'
 
 type Tab = 'checklist' | 'wallet' | 'goal' | 'stats'
@@ -38,6 +48,18 @@ export function AccountsPage() {
   const [showAdd, setShowAdd] = useState(false)
 
   const selected = data.accounts.find((a) => a.id === selectedId) ?? null
+
+  const handleAdd = (
+    name: string,
+    region: string,
+    plan: GamePassPlan,
+    openingBalance: number,
+    openingStreak: number,
+  ) => {
+    const acc = addAccount(name, region, plan, openingBalance, openingStreak)
+    setSelectedId(acc.id)
+    setShowAdd(false)
+  }
 
   if (data.accounts.length === 0 && !showAdd) {
     return (
@@ -55,27 +77,13 @@ export function AccountsPage() {
             </button>
           </div>
         </div>
-        {showAdd && (
-          <AddAccountModal
-            onClose={() => setShowAdd(false)}
-            onAdd={(name, region, currency) => {
-              const acc = addAccount(name, region, currency)
-              setSelectedId(acc.id)
-              setShowAdd(false)
-            }}
-          />
-        )}
+        {showAdd && <AddAccountModal onClose={() => setShowAdd(false)} onAdd={handleAdd} />}
       </div>
     )
   }
 
   if (selected) {
-    return (
-      <AccountDetail
-        account={selected}
-        onBack={() => setSelectedId(null)}
-      />
-    )
+    return <AccountDetail account={selected} onBack={() => setSelectedId(null)} />
   }
 
   return (
@@ -91,38 +99,35 @@ export function AccountsPage() {
       </div>
 
       <div className="grid grid-3">
-        {data.accounts.map((acc) => (
-          <button
-            key={acc.id}
-            className="card"
-            style={{ cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
-            onClick={() => setSelectedId(acc.id)}
-          >
-            <div className="flex-between">
-              <h3 className="mt-0 mb-0" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="account-dot" style={{ background: acc.color }} />
-                {acc.name}
-              </h3>
-              <span className="muted">{acc.region}</span>
-            </div>
-            <div className="stat-value" style={{ marginTop: 10 }}>
-              {fmtPoints(balanceOf(data, acc.id))}
-            </div>
-            <div className="muted">pontos · {acc.currency === 'BRL' ? 'Brasil' : 'Internacional'}</div>
-          </button>
-        ))}
+        {data.accounts.map((acc) => {
+          const streak = streakOf(data, acc.id)
+          return (
+            <button
+              key={acc.id}
+              className="card"
+              style={{ cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
+              onClick={() => setSelectedId(acc.id)}
+            >
+              <div className="flex-between">
+                <h3 className="mt-0 mb-0" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="account-dot" style={{ background: acc.color }} />
+                  {acc.name}
+                </h3>
+                <span className="muted">{acc.region}</span>
+              </div>
+              <div className="stat-value" style={{ marginTop: 10 }}>
+                {fmtPoints(balanceOf(data, acc.id))}
+              </div>
+              <div className="muted">
+                pontos · {PLAN_LABELS[acc.plan]}
+                {streak.current > 0 && <> · 🔥 {streak.current}</>}
+              </div>
+            </button>
+          )
+        })}
       </div>
 
-      {showAdd && (
-        <AddAccountModal
-          onClose={() => setShowAdd(false)}
-          onAdd={(name, region, currency) => {
-            const acc = addAccount(name, region, currency)
-            setSelectedId(acc.id)
-            setShowAdd(false)
-          }}
-        />
-      )}
+      {showAdd && <AddAccountModal onClose={() => setShowAdd(false)} onAdd={handleAdd} />}
     </div>
   )
 }
@@ -146,8 +151,8 @@ function AccountDetail({ account, onBack }: { account: Account; onBack: () => vo
             {account.name}
           </h1>
           <p className="page-sub">
-            {account.region} · saldo {fmtPoints(balanceOf(data, account.id))} pontos
-            {streak.current > 0 && <> · 🔥 {streak.current} dias seguidos</>}
+            {account.region} · {PLAN_LABELS[account.plan]} · saldo {fmtPoints(balanceOf(data, account.id))} pontos
+            {streak.current > 0 && <> · 🔥 {streak.current} dias</>}
           </p>
         </div>
       </div>
@@ -161,11 +166,7 @@ function AccountDetail({ account, onBack }: { account: Account; onBack: () => vo
             ['stats', 'Estatísticas'],
           ] as [Tab, string][]
         ).map(([id, label]) => (
-          <button
-            key={id}
-            className={`tab${tab === id ? ' active' : ''}`}
-            onClick={() => setTab(id)}
-          >
+          <button key={id} className={`tab${tab === id ? ' active' : ''}`} onClick={() => setTab(id)}>
             {label}
           </button>
         ))}
@@ -181,14 +182,20 @@ function AccountDetail({ account, onBack }: { account: Account; onBack: () => vo
 
 // ---------------------------------------------------------------- Checklist
 
+const GROUP_ORDER: (TaskGroup | 'custom')[] = ['xbox', 'bing', 'weekly', 'custom']
+
+function groupOf(task: Task): TaskGroup | 'custom' {
+  return task.builtin ? (builtinGroup(task.builtin) ?? 'custom') : 'custom'
+}
+
 function ChecklistTab({ account }: { account: Account }) {
   const { data, toggleTask } = useStore()
   const [date, setDate] = useState(todayISO())
 
-  const daily = account.tasks.filter((t) => t.frequency === 'daily')
-  const weekly = account.tasks.filter((t) => t.frequency === 'weekly')
-  const monthly = account.tasks.filter((t) => t.frequency === 'monthly')
+  const enabled = account.tasks.filter((t) => t.enabled)
   const streak = streakOf(data, account.id)
+  const cycleDay = cycleDayFor(data, account.id, date)
+  const plan = account.plan
 
   const isDone = (task: Task) =>
     data.entries.some(
@@ -199,30 +206,18 @@ function ChecklistTab({ account }: { account: Account }) {
         e.source === 'checklist',
     )
 
+  const pts = (task: Task) => taskPoints(task, plan, cycleDay)
+
   const doneToday = data.entries
     .filter((e) => e.accountId === account.id && e.date === date && e.type === 'earn')
     .reduce((s, e) => s + e.points, 0)
 
-  const taskList = (tasks: Task[], freqLabel: string) =>
-    tasks.length > 0 && (
-      <>
-        <h3 style={{ marginTop: 14 }}>{freqLabel}</h3>
-        {tasks.map((task) => {
-          const done = isDone(task)
-          return (
-            <button
-              key={task.id}
-              className={`check-item${done ? ' done' : ''}`}
-              onClick={() => toggleTask(account.id, task, date)}
-            >
-              <span className="check-box">{done && <IconCheck size={14} />}</span>
-              {task.name}
-              <span className="check-points">+{fmtPoints(task.points)}</span>
-            </button>
-          )
-        })}
-      </>
-    )
+  const dayPotential = maxDailyPoints(enabled, plan, cycleDay)
+
+  const byGroup = GROUP_ORDER.map((g) => ({
+    group: g,
+    tasks: enabled.filter((t) => groupOf(t) === g),
+  })).filter((s) => s.tasks.length > 0)
 
   return (
     <div className="grid grid-2" style={{ alignItems: 'start' }}>
@@ -238,21 +233,39 @@ function ChecklistTab({ account }: { account: Account }) {
           />
         </div>
         <p className="muted" style={{ marginTop: 6 }}>
-          {fmtDate(date)} · total registrado:{' '}
-          <strong>+{fmtPoints(doneToday)} pontos</strong>
+          {fmtDate(date)} · dia <strong>{cycleDay}</strong> do ciclo · registrado{' '}
+          <strong>+{fmtPoints(doneToday)}</strong> de {fmtPoints(dayPotential)} possíveis
         </p>
+        {cycleDay === 7 && (
+          <p className="muted" style={{ marginTop: -6 }}>
+            🎉 Dia 7 — os bônuns do Bing valem muito mais hoje!
+          </p>
+        )}
 
-        {account.tasks.filter((t) => t.enabled).length === 0 ? (
-          <Empty
-            title="Sem tarefas"
-            text="Edite as tarefas desta conta em Configurações."
-          />
+        {enabled.length === 0 ? (
+          <Empty title="Sem tarefas" text="Edite as tarefas desta conta em Configurações." />
         ) : (
-          <>
-            {taskList(daily, 'Diárias')}
-            {taskList(weekly, 'Semanais')}
-            {taskList(monthly, 'Mensais')}
-          </>
+          byGroup.map((sec) => (
+            <div key={sec.group}>
+              <h3 style={{ marginTop: 14 }}>
+                {sec.group === 'custom' ? 'Personalizadas' : groupLabel(sec.group as TaskGroup)}
+              </h3>
+              {sec.tasks.map((task) => {
+                const done = isDone(task)
+                return (
+                  <button
+                    key={task.id}
+                    className={`check-item${done ? ' done' : ''}`}
+                    onClick={() => toggleTask(account.id, task, date)}
+                  >
+                    <span className="check-box">{done && <IconCheck size={14} />}</span>
+                    {task.name}
+                    <span className="check-points">+{fmtPoints(pts(task))}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ))
         )}
       </div>
 
@@ -268,6 +281,16 @@ function ChecklistTab({ account }: { account: Account }) {
             <div className="muted">dias de sequência{!streak.todayDone && ' (falta hoje!)'}</div>
             <div style={{ marginTop: 8 }}>
               <span className="pill">Recorde: {streak.best} dias</span>
+            </div>
+          </div>
+
+          <div className="card" style={{ textAlign: 'center' }}>
+            <div className="stat-value" style={{ fontSize: 40 }}>
+              {cycleDay}/7
+            </div>
+            <div className="muted">dia do ciclo atual</div>
+            <div style={{ marginTop: 8 }}>
+              <span className="pill">{PLAN_LABELS[plan]}</span>
             </div>
           </div>
 
@@ -325,11 +348,7 @@ function WalletTab({ account }: { account: Account }) {
           value={fmtPoints(redeems.totalPoints)}
           sub={`${redeems.count} resgate(s)`}
         />
-        <StatCard
-          label="Valor resgatado"
-          value={fmtBRL(redeems.totalValue)}
-          sub="convertido em BRL"
-        />
+        <StatCard label="Ganhos no mês" value={fmtPoints(earnSumMonth(data, account.id))} sub="pontos" />
       </div>
 
       <div className="flex-between section-gap">
@@ -358,9 +377,6 @@ function WalletTab({ account }: { account: Account }) {
                 {e.label}
                 {e.source === 'checklist' && <span className="muted"> · checklist</span>}
               </span>
-              {e.value !== undefined && e.type === 'redeem' && (
-                <span className="entry-date">{fmtBRL(e.value)}</span>
-              )}
               <span className="entry-date">{fmtDate(e.date)}</span>
               <button
                 className="btn icon-only small"
@@ -396,12 +412,11 @@ function WalletTab({ account }: { account: Account }) {
         <RedeemModal
           account={account}
           onClose={() => setShowRedeem(false)}
-          onAdd={(points, value, label, date) => {
+          onAdd={(points, label, date) => {
             addEntry({
               accountId: account.id,
               type: 'redeem',
               points,
-              value,
               label,
               date,
               source: 'manual',
@@ -445,7 +460,7 @@ function EarnModal({
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
       </Field>
-      <Field label="Categoria (ex.: Pesquisa PC, Daily Set)">
+      <Field label="Categoria (ex.: Pesquisa PC, Check-in)">
         <input
           type="text"
           list={`cats-${account.id}`}
@@ -481,47 +496,31 @@ function RedeemModal({
 }: {
   account: Account
   onClose: () => void
-  onAdd: (points: number, value: number, label: string, date: string) => void
+  onAdd: (points: number, label: string, date: string) => void
 }) {
   const [points, setPoints] = useState('')
-  const [value, setValue] = useState('')
   const [label, setLabel] = useState('')
   const [date, setDate] = useState(todayISO())
 
   const submit = () => {
     const p = Number(points)
-    const v = Number(value)
     if (!p || p <= 0) return
-    onAdd(
-      Math.round(p),
-      v > 0 ? v : 0,
-      label.trim() || 'Recompensa',
-      date,
-    )
+    onAdd(Math.round(p), label.trim() || 'Recompensa', date)
   }
 
   return (
     <Modal title={`Registrar resgate — ${account.name}`} onClose={onClose}>
-      <Field label={`Pontos gastos${account.currency === 'USD' ? ' (USD)' : ''}`}>
+      <Field label="Pontos gastos">
         <input
           type="number"
           min={1}
           value={points}
           autoFocus
           onChange={(e) => setPoints(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
       </Field>
-      <Field label={`Valor recebido (${account.currency === 'USD' ? 'US$' : 'R$'})`}>
-        <input
-          type="number"
-          min={0}
-          step="0.01"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="0,00"
-        />
-      </Field>
-      <Field label="Recompensa (ex.: Gift Card R$30, Game Pass)">
+      <Field label="Recompensa (ex.: Game Pass Ultimate, Gift Card)">
         <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} />
       </Field>
       <Field label="Data">
@@ -549,19 +548,17 @@ function GoalTab({ account }: { account: Account }) {
 
   if (!account.goal || editing) {
     return (
-      <>
-        <div className="card" style={{ maxWidth: 480 }}>
-          <h3>{account.goal ? 'Editar meta' : 'Definir meta de resgate'}</h3>
-          <GoalForm
-            initial={account.goal}
-            onSave={(name, targetPoints) => {
-              updateAccount(account.id, { goal: { name, targetPoints } })
-              setEditing(false)
-            }}
-            onCancel={() => setEditing(false)}
-          />
-        </div>
-      </>
+      <div className="card" style={{ maxWidth: 480 }}>
+        <h3>{account.goal ? 'Editar meta' : 'Definir meta de resgate'}</h3>
+        <GoalForm
+          initial={account.goal}
+          onSave={(name, targetPoints) => {
+            updateAccount(account.id, { goal: { name, targetPoints } })
+            setEditing(false)
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
     )
   }
 
@@ -586,9 +583,7 @@ function GoalTab({ account }: { account: Account }) {
             {fc!.done ? (
               <span className="pill green">🎉 Meta atingida! Pode resgatar.</span>
             ) : (
-              <>
-                Faltam <strong>{fmtPoints(fc!.remaining)} pontos</strong>
-              </>
+              <>Faltam <strong>{fmtPoints(fc!.remaining)} pontos</strong></>
             )}
           </p>
         </div>
@@ -601,12 +596,9 @@ function GoalTab({ account }: { account: Account }) {
                 {fmtDate(fc!.etaDate!)}
               </div>
               <p className="muted">
-                ~{fc!.etaDays} dias · pelo ritmo médio dos últimos 7 dias (
-                {fc!.avg7.toFixed(1)} pts/dia)
+                ~{fc!.etaDays} dias · pelo ritmo médio dos últimos 7 dias ({fc!.avg7.toFixed(1)} pts/dia)
               </p>
-              <div className="muted">
-                Ritmo de 30 dias: {fc!.avg30.toFixed(1)} pts/dia
-              </div>
+              <div className="muted">Ritmo de 30 dias: {fc!.avg30.toFixed(1)} pts/dia</div>
             </>
           ) : (
             <p className="muted">
@@ -618,20 +610,13 @@ function GoalTab({ account }: { account: Account }) {
 
       <div className="card section-gap">
         <h3>Ritmo para atingir a meta</h3>
-        <RhythmBars account={account} target={fc!.targetPoints} remaining={fc!.remaining} />
+        <RhythmBars account={account} remaining={fc!.remaining} />
       </div>
     </div>
   )
 }
 
-function RhythmBars({
-  account,
-  remaining,
-}: {
-  account: Account
-  target: number
-  remaining: number
-}) {
+function RhythmBars({ account, remaining }: { account: Account; remaining: number }) {
   const { data } = useStore()
   const avg7 = avgDailyEarn(data, account.id, 7)
   const avg30 = avgDailyEarn(data, account.id, 30)
@@ -675,9 +660,9 @@ function GoalForm({
   onCancel: () => void
 }) {
   const presets = [
-    { name: 'Gift Card R$30 (Microsoft)', points: 4600 },
-    { name: 'Gift Card R$50 (Microsoft)', points: 7200 },
     { name: 'Game Pass Ultimate (1 mês)', points: 10500 },
+    { name: 'Game Pass Premium (1 mês)', points: 7000 },
+    { name: 'Game Pass Essential (1 mês)', points: 5000 },
     { name: 'Doação (Cruz Vermelha)', points: 1000 },
   ]
   const [name, setName] = useState(initial?.name ?? '')
@@ -745,6 +730,12 @@ function StatsTab({ account }: { account: Account }) {
   const streak = streakOf(data, account.id)
 
   const themeText = 'var(--text-secondary)'
+  const tipStyle = {
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    color: 'var(--text)',
+  }
 
   return (
     <div>
@@ -785,21 +776,10 @@ function StatsTab({ account }: { account: Account }) {
                   tickFormatter={(v: number) => fmtPoints(v)}
                 />
                 <Tooltip
-                  contentStyle={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    color: 'var(--text)',
-                  }}
+                  contentStyle={tipStyle}
                   formatter={(v: number | string) => [fmtPoints(Number(v)), 'Saldo']}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="total"
-                  stroke={account.color}
-                  strokeWidth={2.5}
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="total" stroke={account.color} strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -823,15 +803,7 @@ function StatsTab({ account }: { account: Account }) {
                   axisLine={false}
                   width={110}
                 />
-                <Tooltip
-                  contentStyle={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    color: 'var(--text)',
-                  }}
-                  formatter={(v: number | string) => [fmtPoints(Number(v)), 'Pontos']}
-                />
+                <Tooltip contentStyle={tipStyle} formatter={(v: number | string) => [fmtPoints(Number(v)), 'Pontos']} />
                 <Bar dataKey="value" fill={account.color} radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -851,15 +823,29 @@ function AddAccountModal({
   onAdd,
 }: {
   onClose: () => void
-  onAdd: (name: string, region: string, currency: 'BRL' | 'USD') => void
+  onAdd: (
+    name: string,
+    region: string,
+    plan: GamePassPlan,
+    openingBalance: number,
+    openingStreak: number,
+  ) => void
 }) {
   const [name, setName] = useState('')
   const [region, setRegion] = useState('Brasil')
-  const [currency, setCurrency] = useState<'BRL' | 'USD'>('BRL')
+  const [plan, setPlan] = useState<GamePassPlan>('NONE')
+  const [balance, setBalance] = useState('')
+  const [streak, setStreak] = useState('')
 
   const submit = () => {
     if (!name.trim()) return
-    onAdd(name.trim(), region, currency)
+    onAdd(
+      name.trim(),
+      region,
+      plan,
+      Number(balance) || 0,
+      Number(streak) || 0,
+    )
   }
 
   return (
@@ -881,18 +867,37 @@ function AddAccountModal({
           <option>Outro</option>
         </select>
       </Field>
-      <Field label="Moeda dos resgates">
-        <select
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value as 'BRL' | 'USD')}
-        >
-          <option value="BRL">Real (R$)</option>
-          <option value="USD">Dólar (US$)</option>
+      <Field label="Plano do Game Pass">
+        <select value={plan} onChange={(e) => setPlan(e.target.value as GamePassPlan)}>
+          <option value="NONE">Sem Game Pass</option>
+          <option value="ESSENTIAL">Game Pass Essential</option>
+          <option value="PREMIUM">Game Pass Premium</option>
+          <option value="ULTIMATE">Game Pass Ultimate</option>
         </select>
       </Field>
+      <div className="grid grid-2" style={{ gap: 12 }}>
+        <Field label="Saldo atual (pontos)">
+          <input
+            type="number"
+            min={0}
+            value={balance}
+            onChange={(e) => setBalance(e.target.value)}
+            placeholder="0"
+          />
+        </Field>
+        <Field label="Sequência atual (dias)">
+          <input
+            type="number"
+            min={0}
+            value={streak}
+            onChange={(e) => setStreak(e.target.value)}
+            placeholder="0"
+          />
+        </Field>
+      </div>
       <p className="muted">
-        A conta já vem com tarefas padrão do checklist — você pode ajustá-las depois em
-        Configurações.
+        Conta existente? Informe o saldo e a sequência atuais. O plano define os pontos do app Xbox
+        e dos bônus semanais.
       </p>
       <div className="modal-actions">
         <button className="btn" onClick={onClose}>
@@ -905,4 +910,3 @@ function AddAccountModal({
     </Modal>
   )
 }
-
