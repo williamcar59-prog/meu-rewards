@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     // 5176: 5173/5174 são dos outros projetos (Card Games, SaveLoot)
     port: 5176,
+    watch: {
+      // ignora pasta do APK e build para não travar o watcher (OneDrive)
+      ignored: ['**/apk/**', '**/dist/**', '**/node_modules/**'],
+    },
   },
   preview: {
     // 4176: 4174 (SaveLoot) e 4175 (Card Games) já estão reservados

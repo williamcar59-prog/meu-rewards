@@ -1,0 +1,10 @@
+Keep this file and signing.keystore in a safe place. You'll need these files if you want to upload future versions of your PWA to the Google Play Store.
+
+Key store file: signing.keystore
+Key store password: JhtgXfCT4hdJ
+Key alias: my-key-alias
+Key password: JhtgXfCT4hdJ
+Signer's full name: Meu Rewards Admin
+Signer's organization: Meu Rewards
+Signer's organizational unit: Engineering
+Signer's country code: BR

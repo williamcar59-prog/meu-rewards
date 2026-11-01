@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.william.meurewards",
+        "sha256_cert_fingerprints": ["7E:AF:52:82:59:2D:97:9A:82:DA:D6:F0:29:F2:7B:9F:67:DA:93:35:0A:5D:AA:15:24:61:ED:31:FF:40:A6:33"]
+      }
+    }]
