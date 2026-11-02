@@ -1,6 +1,6 @@
 // Cálculos de domínio: saldo por check-in, sequência, peças e relatório mensal
 
-import { AppData, CheckIn } from '../types'
+import { AppData, CheckIn, Redemption } from '../types'
 import { addDays, daysBetween, todayISO } from './dates'
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -237,14 +237,18 @@ export function totalMonthlyReport(data: AppData, year: number, month: number): 
 }
 
 /** Série de ganho líquido dos últimos N meses (para gráfico) */
-export function monthlyNetSeries(data: AppData, months = 6): { month: string; value: number }[] {
+export function monthlyNetSeries(
+  data: AppData,
+  months = 6,
+): { month: string; value: number; redeemed: number }[] {
   const now = new Date()
-  const out: { month: string; value: number }[] = []
+  const out: { month: string; value: number; redeemed: number }[] = []
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const y = d.getFullYear()
     const m = d.getMonth() + 1
-    out.push({ month: `${y}-${pad(m)}`, value: totalMonthlyReport(data, y, m).netEarned })
+    const rep = totalMonthlyReport(data, y, m)
+    out.push({ month: `${y}-${pad(m)}`, value: rep.netEarned, redeemed: rep.redeemed })
   }
   return out
 }
@@ -254,6 +258,7 @@ export function monthlyNetSeries(data: AppData, months = 6): { month: string; va
 export interface TimePoint {
   date: string
   total: number
+  redeemed: number // pontos resgatados nesse dia (0 se houve)
 }
 
 /** Série do saldo somado ao longo do tempo (a partir dos check-ins) */
@@ -279,12 +284,38 @@ export function balanceSeries(data: AppData, accountId: string | null): TimePoin
       if (iso < acc.createdAt) continue
       sum += balanceAt(data, acc.id, iso)
     }
-    out.push({ date: iso, total: sum })
+    out.push({ date: iso, total: sum, redeemed: redemptionsOn(data, accountId, iso) })
   }
   return out
 }
 
 // ---------------------------------------------------------------- Resgates
+
+/** Pontos resgatados em um dia específico (accountId null = todas as contas). */
+export function redemptionsOn(data: AppData, accountId: string | null, date: string): number {
+  let sum = 0
+  for (const r of data.redemptions) {
+    if (r.date !== date) continue
+    if (accountId !== null && r.accountId !== accountId) continue
+    sum += r.points
+  }
+  return sum
+}
+
+/** Resgates de um intervalo de datas (usado no relatório do mês). */
+export function redemptionsBetween(
+  data: AppData,
+  accountId: string | null,
+  first: string,
+  last: string,
+): Redemption[] {
+  return data.redemptions.filter(
+    (r) =>
+      r.date >= first &&
+      r.date <= last &&
+      (accountId === null || r.accountId === accountId),
+  )
+}
 
 export interface RedeemSummary {
   totalPoints: number

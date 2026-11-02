@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -21,6 +22,8 @@ export function StatsOverviewPage() {
   const now = new Date()
   const thisMonth = totalMonthlyReport(data, now.getFullYear(), now.getMonth() + 1)
   const series = balanceSeries(data, null).slice(-60)
+  // mesma série, mas com o saldo visível apenas nos dias que houve resgate (ponto vermelho)
+  const markSeries = series.map((p) => ({ ...p, mark: p.redeemed > 0 ? p.total : null }))
   const monthly = monthlyNetSeries(data, 6)
   const redeems = redeemSummary(data, null)
   const statsPuzzle = puzzleProgress(data, null)
@@ -50,23 +53,31 @@ export function StatsOverviewPage() {
       </div>
 
       <div className="card section-gap">
-        <h3>Ganho líquido por mês (últimos 6)</h3>
-        <ResponsiveContainer width="100%" height={240}>
+        <h3>Ganho líquido e resgates por mês (últimos 6)</h3>
+        <ResponsiveContainer width="100%" height={250}>
           <BarChart data={monthly} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
             <XAxis dataKey="month" stroke={textStyle} fontSize={11} tickLine={false} axisLine={false} />
             <YAxis stroke={textStyle} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => fmtPoints(v)} />
-            <Tooltip contentStyle={tipStyle} formatter={(v: number | string) => [fmtPoints(Number(v)), 'Pontos']} />
-            <Bar dataKey="value" fill="var(--success)" radius={[3, 3, 0, 0]} />
+            <Tooltip
+              contentStyle={tipStyle}
+              formatter={(v: number | string, name: string) => [fmtPoints(Number(v)), name]}
+            />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="value" name="Ganho líquido" fill="var(--success)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="redeemed" name="Resgates" fill="var(--danger)" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        <p className="muted" style={{ marginBottom: 0 }}>
+          Verde = pontos obtidos no mês · Vermelho = pontos usados (resgatados)
+        </p>
       </div>
 
       <div className="card section-gap">
-        <h3>Evolução do saldo somado (60 dias)</h3>
+        <h3>Evolução do saldo e resgates (60 dias)</h3>
         {series.length > 1 ? (
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={series} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+            <LineChart data={markSeries} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -77,13 +88,33 @@ export function StatsOverviewPage() {
                 axisLine={false}
               />
               <YAxis stroke={textStyle} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => fmtPoints(v)} />
-              <Tooltip contentStyle={tipStyle} formatter={(v: number | string) => [fmtPoints(Number(v)), 'Saldo']} />
-              <Line type="monotone" dataKey="total" stroke="var(--accent)" strokeWidth={2.5} dot={false} />
+              <Tooltip contentStyle={tipStyle} formatter={(v: number | string, name: string) => [fmtPoints(Number(v)), name]} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line
+                type="monotone"
+                dataKey="total"
+                name="Saldo"
+                stroke="var(--accent)"
+                strokeWidth={2.5}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="mark"
+                name="Resgate"
+                stroke="none"
+                connectNulls={false}
+                dot={{ r: 5, fill: 'var(--danger)', stroke: 'var(--bg-card)', strokeWidth: 1.5 }}
+                activeDot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         ) : (
           <p className="muted">Faça check-ins para ver a evolução do saldo.</p>
         )}
+        <p className="muted" style={{ marginBottom: 0 }}>
+          Os pontos vermelhos marcam os dias em que você usou pontos.
+        </p>
       </div>
 
       <div className="card section-gap">

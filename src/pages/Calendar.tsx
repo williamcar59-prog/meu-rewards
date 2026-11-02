@@ -11,8 +11,11 @@ import {
   currentBalance,
   monthLabelPt,
   monthlyReport,
+  monthBounds,
   nextMonth,
   prevMonth,
+  redemptionsBetween,
+  redemptionsOn,
   streakOf,
 } from '../utils/calc'
 import { todayISO } from '../utils/dates'
@@ -54,7 +57,9 @@ export function CalendarPage() {
   const account = data.accounts.find((a) => a.id === accountId) ?? data.accounts[0]
   const accId = account.id
   const today = todayISO()
+  const { first: monthFirst, last: monthLast } = monthBounds(year, month)
   const report = monthlyReport(data, accId, year, month)
+  const monthRedemptions = redemptionsBetween(data, accId, monthFirst, monthLast)
   const streak = streakOf(data, accId)
   const cells = buildGrid(year, month)
 
@@ -130,14 +135,32 @@ export function CalendarPage() {
               const future = iso > today
               const isToday = iso === today
               const check = data.checkIns.find((c) => c.accountId === accId && c.date === iso)
+              const redeemed = redemptionsOn(data, accId, iso)
               return (
                 <button
                   key={iso}
                   disabled={future}
                   onClick={() => setCheckDate(iso)}
+                  title={
+                    redeemed > 0
+                      ? `Resgate de ${fmtPoints(redeemed)} pontos`
+                      : done
+                        ? 'Check-in feito'
+                        : undefined
+                  }
                   style={{
-                    border: `1px solid ${isToday ? 'var(--accent)' : 'var(--border)'}`,
-                    background: done ? 'color-mix(in srgb, var(--success) 14%, transparent)' : 'var(--bg-card)',
+                    border: `1px solid ${
+                      redeemed > 0
+                        ? 'var(--danger)'
+                        : isToday
+                          ? 'var(--accent)'
+                          : 'var(--border)'
+                    }`,
+                    background: done
+                      ? 'color-mix(in srgb, var(--success) 14%, transparent)'
+                      : redeemed > 0
+                        ? 'color-mix(in srgb, var(--danger) 10%, transparent)'
+                        : 'var(--bg-card)',
                     borderRadius: 8,
                     padding: '6px 2px',
                     cursor: future ? 'default' : 'pointer',
@@ -156,21 +179,39 @@ export function CalendarPage() {
                     {Number(iso.slice(8))}
                   </span>
                   {done && (
-                    <>
-                      <span style={{ fontSize: 10, lineHeight: 1, color: 'var(--text-secondary)' }}>
-                        {fmtPoints(check!.balance)}
-                      </span>
-                      {(check!.pieces ?? 0) > 0 && (
-                        <span style={{ fontSize: 10, lineHeight: 1 }}>🧩 {check!.pieces}</span>
-                      )}
-                    </>
+                    <span style={{ fontSize: 10, lineHeight: 1, color: 'var(--text-secondary)' }}>
+                      {fmtPoints(check!.balance)}
+                    </span>
+                  )}
+                  {(check?.pieces ?? 0) > 0 && (
+                    <span style={{ fontSize: 10, lineHeight: 1 }}>🧩 {check!.pieces}</span>
+                  )}
+                  {redeemed > 0 && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        lineHeight: 1,
+                        fontWeight: 700,
+                        color: 'var(--danger)',
+                      }}
+                    >
+                      🎁 −{fmtPoints(redeemed)}
+                    </span>
                   )}
                 </button>
               )
             })}
           </div>
 
-          <p className="muted" style={{ marginTop: 10, marginBottom: 0 }}>
+          <div
+            className="muted"
+            style={{ marginTop: 10, marginBottom: 0, display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12 }}
+          >
+            <span>Verde = check-in feito</span>
+            <span>🧩 = peças do dia</span>
+            <span style={{ color: 'var(--danger)' }}>🎁 = resgate</span>
+          </div>
+          <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
             Toque em um dia para registrar ou editar o check-in.
           </p>
         </div>
@@ -217,6 +258,25 @@ export function CalendarPage() {
             <p className="muted" style={{ marginBottom: 0, marginTop: 12 }}>
               {report.daysChecked} dia(s) com check-in · 🧩 {report.pieces} peça(s) no mês
             </p>
+
+            {monthRedemptions.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div className="stat-label" style={{ marginBottom: 4 }}>
+                  Resgates do mês
+                </div>
+                {monthRedemptions.map((r) => (
+                  <div key={r.id} className="entry" style={{ padding: '6px 0' }}>
+                    <span className="entry-points neg">−{fmtPoints(r.points)}</span>
+                    <span className="entry-label">
+                      <strong>{r.usedFor}</strong>
+                    </span>
+                    <span className="entry-date">
+                      {r.date.split('-').reverse().join('/')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="section-gap">
