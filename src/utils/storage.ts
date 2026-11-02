@@ -120,7 +120,7 @@ export async function readFromFile(handle: FileSystemFileHandle): Promise<AppDat
     const file = await (handle as unknown as { getFile: () => Promise<File> }).getFile()
     const text = await file.text()
     const parsed = JSON.parse(text) as AppData
-    if (!parsed || !Array.isArray(parsed.accounts) || !Array.isArray(parsed.entries)) return null
+    if (!parsed || !Array.isArray(parsed.accounts)) return null
     return parsed
   } catch {
     return null

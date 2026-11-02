@@ -1,27 +1,28 @@
-// App principal: navegação + lembrete diário
+// App principal: navegação + lembrete diário de check-in
 
 import { useEffect, useRef, useState } from 'react'
 import { StoreProvider, useStore } from './store'
 import {
+  IconCalendar,
   IconChart,
   IconGift,
   IconHome,
   IconSettings,
-  IconWallet,
 } from './components/Icons'
 import { SummaryPage } from './pages/Summary'
-import { AccountsPage } from './pages/Accounts'
+import { CalendarPage } from './pages/Calendar'
+import { StatsOverviewPage } from './pages/StatsOverview'
 import { RedeemsPage } from './pages/Redeems'
 import { SettingsPage } from './pages/Settings'
-import { earnSumToday } from './utils/calc'
+import { checkedInOn } from './utils/calc'
 import { showNotification } from './utils/notify'
 import { todayISO } from './utils/dates'
 
-type Page = 'summary' | 'accounts' | 'stats' | 'redeems' | 'settings'
+type Page = 'summary' | 'calendar' | 'stats' | 'redeems' | 'settings'
 
 const NAV: { id: Page; label: string; icon: (p: { size?: number; className?: string }) => JSX.Element }[] = [
   { id: 'summary', label: 'Resumo', icon: IconHome },
-  { id: 'accounts', label: 'Contas', icon: IconWallet },
+  { id: 'calendar', label: 'Calendário', icon: IconCalendar },
   { id: 'stats', label: 'Estatísticas', icon: IconChart },
   { id: 'redeems', label: 'Resgates', icon: IconGift },
   { id: 'settings', label: 'Configurações', icon: IconSettings },
@@ -57,9 +58,9 @@ function Shell() {
           <p className="muted">Carregando…</p>
         ) : (
           <>
-            {page === 'summary' && <SummaryPage onGoAccounts={() => setPage('accounts')} />}
-            {page === 'accounts' && <AccountsPage />}
-            {page === 'stats' && <StatsOverview />}
+            {page === 'summary' && <SummaryPage onGoAccounts={() => setPage('settings')} />}
+            {page === 'calendar' && <CalendarPage />}
+            {page === 'stats' && <StatsOverviewPage />}
             {page === 'redeems' && <RedeemsPage />}
             {page === 'settings' && <SettingsPage />}
           </>
@@ -68,14 +69,6 @@ function Shell() {
       <ReminderChecker />
     </div>
   )
-}
-
-// ---------------------------------------------------------------- Estatísticas (todas as contas)
-
-import { StatsOverviewPage } from './pages/StatsOverview'
-
-function StatsOverview() {
-  return <StatsOverviewPage />
 }
 
 // ---------------------------------------------------------------- Lembrete
@@ -93,18 +86,11 @@ function ReminderChecker() {
       const today = todayISO()
       if (notifiedRef.current === today) return
 
-      // se alguma conta tem tarefas do dia e nada foi registrado hoje, avisa
-      const pending = data.accounts.some((acc) => {
-        const hasDaily = acc.tasks.some((t) => t.enabled && t.frequency === 'daily')
-        if (!hasDaily) return false
-        return earnSumToday(data, acc.id) === 0
-      })
+      // avisa se alguma conta ainda não fez check-in hoje
+      const pending = data.accounts.some((acc) => !checkedInOn(data, acc.id, today))
 
       if (pending) {
-        showNotification(
-          'Meu Rewards 🔥',
-          'Você ainda não registrou os pontos de hoje. Não perca seu streak!',
-        )
+        showNotification('Meu Rewards 🔥', 'Você ainda não fez o check-in de hoje. Não perca a sequência!')
         notifiedRef.current = today
       } else {
         notifiedRef.current = today // tudo feito — não repete

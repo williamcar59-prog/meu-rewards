@@ -5,10 +5,9 @@ import {
   ACCOUNT_COLORS,
   Account,
   AppData,
-  Entry,
+  CheckIn,
+  Redemption,
   Settings,
-  Task,
-  defaultTasks,
   emptyData,
   normalizeData,
   uid,
@@ -26,7 +25,6 @@ import {
   writeToFile,
 } from './utils/storage'
 import { todayISO } from './utils/dates'
-import { cycleDayFor, taskPoints } from './utils/calc'
 
 interface StoreValue {
   data: AppData
@@ -43,9 +41,10 @@ interface StoreValue {
   ) => Account
   updateAccount: (id: string, patch: Partial<Account>) => void
   deleteAccount: (id: string) => void
-  addEntry: (entry: Omit<Entry, 'id' | 'createdAt'>) => void
-  deleteEntry: (id: string) => void
-  toggleTask: (accountId: string, task: Task, date: string) => void
+  upsertCheckIn: (accountId: string, date: string, balance: number, pieces: number) => void
+  deleteCheckIn: (id: string) => void
+  addRedemption: (accountId: string, date: string, points: number, usedFor: string) => void
+  deleteRedemption: (id: string) => void
   setSettings: (patch: Partial<Settings>) => void
   importData: (data: AppData) => void
   connectSyncFile: () => Promise<void>
@@ -77,16 +76,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const granted = (await hasWritePermission(handle)) || (await requestWritePermission(handle))
         if (granted) {
           const fileData = await readFromFile(handle)
-          // usa o arquivo se for mais recente que o local
           if (fileData && (!local || fileData.updatedAt > local.updatedAt)) {
             next = fileData
           }
         }
       }
       if (cancelled) return
-      if (next) {
-        setData(normalizeData(next))
-      }
+      if (next) setData(normalizeData(next))
       setSyncFileName(fileName)
       setReady(true)
     })()
@@ -132,7 +128,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persist],
   )
 
-  // ----- ações -----
+  // ----- contas -----
 
   const addAccount = useCallback(
     (
@@ -150,8 +146,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         openingBalance: Math.max(0, Math.round(openingBalance)),
         openingStreak: Math.max(0, Math.round(openingStreak)),
         color: ACCOUNT_COLORS[Math.floor(Math.random() * ACCOUNT_COLORS.length)],
-        goal: null,
-        tasks: defaultTasks(),
         createdAt: todayISO(),
       }
       update((d) => ({ ...d, accounts: [...d.accounts, account] }))
@@ -175,64 +169,72 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       update((d) => ({
         ...d,
         accounts: d.accounts.filter((a) => a.id !== id),
-        entries: d.entries.filter((e) => e.accountId !== id),
+        checkIns: d.checkIns.filter((c) => c.accountId !== id),
+        redemptions: d.redemptions.filter((r) => r.accountId !== id),
       }))
     },
     [update],
   )
 
-  const addEntry = useCallback(
-    (entry: Omit<Entry, 'id' | 'createdAt'>) => {
-      update((d) => ({
-        ...d,
-        entries: [...d.entries, { ...entry, id: uid(), createdAt: new Date().toISOString() }],
-      }))
-    },
-    [update],
-  )
+  // ----- check-in -----
 
-  const deleteEntry = useCallback(
-    (id: string) => {
-      update((d) => ({ ...d, entries: d.entries.filter((e) => e.id !== id) }))
-    },
-    [update],
-  )
-
-  const toggleTask = useCallback(
-    (accountId: string, task: Task, date: string) => {
+  const upsertCheckIn = useCallback(
+    (accountId: string, date: string, balance: number, pieces: number) => {
       update((d) => {
-        const existing = d.entries.find(
-          (e) =>
-            e.accountId === accountId &&
-            e.taskId === task.id &&
-            e.date === date &&
-            e.source === 'checklist',
-        )
+        const existing = d.checkIns.find((c) => c.accountId === accountId && c.date === date)
         if (existing) {
-          return { ...d, entries: d.entries.filter((e) => e.id !== existing.id) }
+          return {
+            ...d,
+            checkIns: d.checkIns.map((c) =>
+              c.id === existing.id
+                ? { ...c, balance: Math.round(balance), pieces: Math.max(0, Math.round(pieces)) }
+                : c,
+            ),
+          }
         }
-        const account = d.accounts.find((a) => a.id === accountId)
-        const plan = account?.plan ?? 'NONE'
-        const cycleDay = cycleDayFor(d, accountId, date)
-        const pts = taskPoints(task, plan, cycleDay)
-        return {
-          ...d,
-          entries: [
-            ...d.entries,
-            {
-              id: uid(),
-              accountId,
-              type: 'earn' as const,
-              points: pts,
-              label: task.name,
-              date,
-              createdAt: new Date().toISOString(),
-              source: 'checklist' as const,
-              taskId: task.id,
-            },
-          ],
+        const novo: CheckIn = {
+          id: uid(),
+          accountId,
+          date,
+          balance: Math.round(balance),
+          pieces: Math.max(0, Math.round(pieces)),
+          createdAt: new Date().toISOString(),
         }
+        return { ...d, checkIns: [...d.checkIns, novo] }
       })
+    },
+    [update],
+  )
+
+  const deleteCheckIn = useCallback(
+    (id: string) => {
+      update((d) => ({ ...d, checkIns: d.checkIns.filter((c) => c.id !== id) }))
+    },
+    [update],
+  )
+
+  // ----- resgates -----
+
+  const addRedemption = useCallback(
+    (accountId: string, date: string, points: number, usedFor: string) => {
+      update((d) => {
+        const novo: Redemption = {
+          id: uid(),
+          accountId,
+          date,
+          points: Math.round(points),
+          usedFor: usedFor.trim() || 'Recompensa',
+          createdAt: new Date().toISOString(),
+        }
+        return { ...d, redemptions: [...d.redemptions, novo] }
+      })
+    },
+    [update],
+  )
+
+  const deleteRedemption = useCallback(
+    (id: string) => {
+      update((d) => ({ ...d, redemptions: d.redemptions.filter((r) => r.id !== id) }))
     },
     [update],
   )
@@ -260,11 +262,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       syncHandleRef.current = handle
       setSyncFileName(handle.name)
       setSyncError(null)
-      // grava o estado atual no arquivo escolhido
       const current = data
       await writeToFile(handle, current)
     } catch (err) {
-      // usuário cancelou o diálogo ou navegador sem suporte
       if (err instanceof DOMException && err.name === 'AbortError') return
       setSyncError(err instanceof Error ? err.message : 'Falha ao conectar arquivo')
     }
@@ -297,9 +297,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     addAccount,
     updateAccount,
     deleteAccount,
-    addEntry,
-    deleteEntry,
-    toggleTask,
+    upsertCheckIn,
+    deleteCheckIn,
+    addRedemption,
+    deleteRedemption,
     setSettings,
     importData,
     connectSyncFile,

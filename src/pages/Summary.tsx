@@ -1,33 +1,25 @@
-// Página: Resumo Geral (todas as contas)
+// Página: Resumo geral — saldos, ganho do mês e check-in rápido
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { useState } from 'react'
 import { useStore } from '../store'
+import { CheckInModal } from '../components/CheckInModal'
+import { IconCheck, IconGift } from '../components/Icons'
+import { fmtPoints, StatCard } from '../components/ui'
 import {
-  balanceSeries,
-  balanceOf,
-  earnSumMonth,
-  earnSumToday,
-  earnSumWeek,
-  goalForecast,
-  monthlyEarns,
+  checkedInOn,
+  currentBalance,
+  piecesTotal,
   redeemSummary,
   streakOf,
   totalBalance,
+  totalMonthlyReport,
 } from '../utils/calc'
-import { fmtDateShort, fmtPoints, StatCard } from '../components/ui'
+import { todayISO } from '../utils/dates'
 import { PLAN_LABELS } from '../data/rewardsTable'
-import { IconGift } from '../components/Icons'
 
 export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
   const { data } = useStore()
+  const [checkInFor, setCheckInFor] = useState<string | null>(null)
 
   if (data.accounts.length === 0) {
     return (
@@ -37,7 +29,7 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
           <div className="empty">
             <IconGift size={44} />
             <h3>Bem-vindo ao Meu Rewards!</h3>
-            <p>Crie sua primeira conta de Rewards para começar a contabilizar seus pontos.</p>
+            <p>Crie sua primeira conta para começar a registrar o saldo todos os dias.</p>
             <button className="btn primary" onClick={onGoAccounts}>
               Criar conta
             </button>
@@ -47,14 +39,10 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
     )
   }
 
-  const total = totalBalance(data)
-  const today = earnSumToday(data, null)
-  const week = earnSumWeek(data, null)
-  const month = earnSumMonth(data, null)
+  const now = new Date()
+  const month = totalMonthlyReport(data, now.getFullYear(), now.getMonth() + 1)
   const redeems = redeemSummary(data, null)
-
-  const series = balanceSeries(data, null).slice(-30)
-  const monthly = monthlyEarns(data, null, 6)
+  const today = todayISO()
 
   return (
     <div>
@@ -62,122 +50,52 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
       <p className="page-sub">Visão consolidada de todas as suas contas</p>
 
       <div className="grid grid-4">
+        <StatCard label="Saldo total" value={fmtPoints(totalBalance(data))} sub="pontos somados" />
         <StatCard
-          label="Saldo total"
-          value={fmtPoints(total)}
-          sub="pontos somados"
+          label="Ganho do mês"
+          value={`+${fmtPoints(month.netEarned)}`}
+          sub="líquido, mesmo resgatando"
         />
-        <StatCard label="Ganho hoje" value={fmtPoints(today)} sub="pontos" />
-        <StatCard label="Esta semana" value={fmtPoints(week)} sub="segunda a hoje" />
-        <StatCard
-          label="Este mês"
-          value={fmtPoints(month)}
-          sub={`resgatado: ${fmtPoints(redeems.totalPoints)} pts`}
-        />
-      </div>
-
-      <div className="grid grid-2 section-gap">
-        <div className="card">
-          <h3>Saldo total — últimos 30 dias</h3>
-          {series.length > 1 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={series} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={fmtDateShort}
-                  stroke="var(--text-secondary)"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  stroke="var(--text-secondary)"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: number) => fmtPoints(v)}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    color: 'var(--text)',
-                  }}
-                  formatter={(v: number | string) => [fmtPoints(Number(v)), 'Saldo']}
-                  labelFormatter={(l) => String(l).split('-').reverse().join('/')}
-                />
-                <Bar dataKey="total" fill="var(--accent)" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="muted">Registre alguns lançamentos para ver o gráfico.</p>
-          )}
-        </div>
-
-        <div className="card">
-          <h3>Ganhos por mês</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthly} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis
-                dataKey="month"
-                stroke="var(--text-secondary)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                stroke="var(--text-secondary)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v: number) => fmtPoints(v)}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  color: 'var(--text)',
-                }}
-                formatter={(v: number | string) => [fmtPoints(Number(v)), 'Pontos']}
-              />
-              <Bar dataKey="value" fill="var(--success)" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <StatCard label="Resgatado" value={fmtPoints(redeems.totalPoints)} sub={`${redeems.count} resgate(s)`} />
+        <StatCard label="Peças 🧩" value={fmtPoints(piecesTotal(data, null))} sub="de quebra-cabeça" />
       </div>
 
       <div className="card section-gap">
         <h3>Contas</h3>
         {data.accounts.map((acc) => {
-          const bal = balanceOf(data, acc.id)
-          const fc = goalForecast(data, acc)
+          const doneToday = checkedInOn(data, acc.id, today)
           const streak = streakOf(data, acc.id)
           return (
             <div key={acc.id} className="entry">
               <span className="account-dot" style={{ background: acc.color }} />
-              <div className="entry-label">
-                <strong>{acc.name}</strong>{' '}
+              <span className="entry-label">
+                <strong>{acc.name}</strong>
                 <span className="muted">
-                  · {acc.region} · {PLAN_LABELS[acc.plan]} · {streak.current > 0 ? `🔥 ${streak.current} dias` : 'sem streak'}
+                  {' '}
+                  · {PLAN_LABELS[acc.plan]}
+                  {streak.current > 0 && <> · 🔥 {streak.current} dias</>}
                 </span>
-              </div>
-              {fc && (
-                <span className={`pill${fc.done ? ' green' : ''}`}>
-                  {fc.done
-                    ? 'Meta atingida! 🎉'
-                    : `${Math.round(fc.progress * 100)}% · ${fmtPoints(fc.remaining)} pts faltam`}
-                </span>
+              </span>
+              <span className="entry-points pos">{fmtPoints(currentBalance(data, acc.id))}</span>
+              {doneToday ? (
+                <span className="pill green">✓ Hoje</span>
+              ) : (
+                <button className="btn small primary" onClick={() => setCheckInFor(acc.id)}>
+                  <IconCheck size={14} /> Check-in
+                </button>
               )}
-              <span className="entry-points pos">{fmtPoints(bal)}</span>
             </div>
           )
         })}
       </div>
+
+      <p className="muted">
+        Abra <strong>Calendário</strong> para ver o relatório do mês e o histórico de check-ins.
+      </p>
+
+      {checkInFor && (
+        <CheckInModal accountId={checkInFor} date={today} onClose={() => setCheckInFor(null)} />
+      )}
     </div>
   )
 }

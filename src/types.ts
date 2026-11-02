@@ -1,50 +1,36 @@
-// Tipos centrais do Rewards Tracker
+// Tipos centrais do Meu Rewards — modelo de check-in diário
 
-import { BUILTIN_TASKS, GamePassPlan } from './data/rewardsTable'
-
-export type Frequency = 'daily' | 'weekly' | 'monthly'
-
-export interface Task {
-  id: string
-  name: string
-  points: number // usado apenas em tarefas personalizadas (as oficiais usam a tabela)
-  frequency: Frequency
-  enabled: boolean
-  /** id da tarefa oficial (rewardsTable) — quando presente, os pontos vêm da tabela */
-  builtin?: string
-}
-
-export interface Goal {
-  name: string
-  targetPoints: number
-}
+import { GamePassPlan } from './data/rewardsTable'
 
 export interface Account {
   id: string
   name: string
   region: string // ex.: 'Brasil', 'EUA'
-  plan: GamePassPlan // plano do Game Pass (afeta pontuação Xbox / bônus)
-  openingBalance: number // saldo atual (em pontos) quando a conta foi criada
-  openingStreak: number // sequência atual (dias) quando a conta foi criada
+  plan: GamePassPlan // plano do Game Pass (referência)
+  openingBalance: number // saldo (pontos) quando a conta foi criada
+  openingStreak: number // sequência (dias) quando a conta foi criada
   color: string
-  goal: Goal | null
-  tasks: Task[]
   createdAt: string // ISO date YYYY-MM-DD
 }
 
-export type EntryType = 'earn' | 'redeem'
-export type EntrySource = 'manual' | 'checklist'
-
-export interface Entry {
+/** Check-in diário: você registra o saldo do dia (e as peças ganhas). */
+export interface CheckIn {
   id: string
   accountId: string
-  type: EntryType
-  points: number // sempre positivo
-  label: string // categoria (ganhos) ou nome da recompensa (resgates)
   date: string // YYYY-MM-DD
+  balance: number // saldo em pontos ao fim do dia
+  pieces: number // peças de quebra-cabeça ganhas neste dia (0-4)
   createdAt: string // ISO datetime
-  source: EntrySource
-  taskId?: string
+}
+
+/** Resgate: quando você usa pontos, registra quanto e em que. */
+export interface Redemption {
+  id: string
+  accountId: string
+  date: string // YYYY-MM-DD
+  points: number // pontos usados (sempre positivo)
+  usedFor: string // onde foi usado (ex.: Game Pass, Gift Card)
+  createdAt: string // ISO datetime
 }
 
 export interface Settings {
@@ -57,11 +43,12 @@ export interface AppData {
   version: number
   updatedAt: string // ISO datetime — usado para conflito de sync
   accounts: Account[]
-  entries: Entry[]
+  checkIns: CheckIn[]
+  redemptions: Redemption[]
   settings: Settings
 }
 
-export const APP_VERSION = 2
+export const APP_VERSION = 3
 
 export function defaultSettings(): Settings {
   return {
@@ -80,30 +67,7 @@ export const ACCOUNT_COLORS = [
   '#d13438', '#c239b3', '#00b7c3', '#986f0b', '#8764b8',
 ]
 
-/** Tarefas padrão = todas as oficiais da tabela, habilitadas */
-export function defaultTasks(): Task[] {
-  return BUILTIN_TASKS.map((b) => ({
-    id: b.id,
-    name: b.name,
-    points: 0,
-    frequency: b.frequency,
-    enabled: true,
-    builtin: b.id,
-  }))
-}
-
-/** Garante campos novos e injeta as tarefas oficiais em contas antigas */
 function normalizeAccount(a: Partial<Account>): Account {
-  const existing = Array.isArray(a.tasks) ? a.tasks : []
-  const have = new Set(existing.map((t) => t.builtin).filter(Boolean) as string[])
-  const injected: Task[] = BUILTIN_TASKS.filter((b) => !have.has(b.id)).map((b) => ({
-    id: b.id,
-    name: b.name,
-    points: 0,
-    frequency: b.frequency,
-    enabled: true,
-    builtin: b.id,
-  }))
   return {
     id: a.id ?? uid(),
     name: a.name ?? 'Conta',
@@ -112,19 +76,35 @@ function normalizeAccount(a: Partial<Account>): Account {
     openingBalance: a.openingBalance ?? 0,
     openingStreak: a.openingStreak ?? 0,
     color: a.color ?? ACCOUNT_COLORS[0],
-    goal: a.goal ?? null,
-    tasks: [...injected, ...existing],
     createdAt: a.createdAt ?? new Date().toISOString().slice(0, 10),
   }
 }
 
-/** Normaliza dados vindos do IndexedDB/OneDrive/backup (versões antigas) */
-export function normalizeData(raw: AppData): AppData {
+/** Normaliza dados vindos de versões antigas (IndexedDB/OneDrive/backup). */
+export function normalizeData(raw: Partial<AppData> & { entries?: unknown }): AppData {
+  // versões antigas guardavam tudo em `entries` — migra resgates
+  let redemptions: Redemption[] = Array.isArray(raw.redemptions) ? raw.redemptions : []
+  if (!Array.isArray(raw.redemptions) && Array.isArray(raw.entries)) {
+    for (const e of raw.entries as Record<string, unknown>[]) {
+      if (e.type === 'redeem') {
+        redemptions.push({
+          id: (e.id as string) ?? uid(),
+          accountId: e.accountId as string,
+          date: e.date as string,
+          points: Number(e.points) || 0,
+          usedFor: (e.label as string) || 'Recompensa',
+          createdAt: (e.createdAt as string) ?? new Date().toISOString(),
+        })
+      }
+    }
+  }
+
   return {
     version: APP_VERSION,
     updatedAt: raw.updatedAt ?? new Date().toISOString(),
     accounts: Array.isArray(raw.accounts) ? raw.accounts.map(normalizeAccount) : [],
-    entries: Array.isArray(raw.entries) ? raw.entries : [],
+    checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : [],
+    redemptions,
     settings: { ...defaultSettings(), ...(raw.settings ?? {}) },
   }
 }
@@ -134,7 +114,8 @@ export function emptyData(): AppData {
     version: APP_VERSION,
     updatedAt: new Date().toISOString(),
     accounts: [],
-    entries: [],
+    checkIns: [],
+    redemptions: [],
     settings: defaultSettings(),
   }
 }

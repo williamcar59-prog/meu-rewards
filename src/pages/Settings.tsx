@@ -1,8 +1,8 @@
-// Página: Configurações — contas, tarefas, tema, notificações, sync e backup
+// Página: Configurações — contas, aparência, lembretes, sync e backup
 
 import { useRef, useState } from 'react'
 import { useStore } from '../store'
-import { Account, AppData, Frequency, Task, uid } from '../types'
+import { Account, AppData } from '../types'
 import { GamePassPlan, PLAN_LABELS } from '../data/rewardsTable'
 import { Field, Modal } from '../components/ui'
 import { IconPlus, IconTrash } from '../components/Icons'
@@ -30,17 +30,17 @@ export function SettingsPage() {
   )
 }
 
-// ---------------------------------------------------------------- Contas e tarefas
+// ---------------------------------------------------------------- Contas
 
 function AccountsSection() {
   const { data, updateAccount, deleteAccount, addAccount } = useStore()
   const [showAdd, setShowAdd] = useState(false)
-  const [editingTasks, setEditingTasks] = useState<Account | null>(null)
+  const [editing, setEditing] = useState<Account | null>(null)
 
   return (
     <div className="card section-gap">
       <div className="flex-between">
-        <h3 className="mt-0 mb-0">Contas e tarefas</h3>
+        <h3 className="mt-0 mb-0">Contas</h3>
         <button className="btn small primary" onClick={() => setShowAdd(true)}>
           <IconPlus size={14} /> Nova conta
         </button>
@@ -52,25 +52,13 @@ function AccountsSection() {
         <div key={acc.id} className="entry">
           <span className="account-dot" style={{ background: acc.color }} />
           <span className="entry-label">
-            <strong>{acc.name}</strong>{' '}
+            <strong>{acc.name}</strong>
             <span className="muted">
-              · {acc.region} · {PLAN_LABELS[acc.plan]} · {acc.tasks.filter((t) => t.enabled).length} tarefas ativas
+              {' '}
+              · {acc.region} · {PLAN_LABELS[acc.plan]}
             </span>
           </span>
-          <button className="btn small" onClick={() => setEditingTasks(acc)}>
-            Editar tarefas
-          </button>
-          <button
-            className="btn small"
-            onClick={() => {
-              const color = prompt('Cor da conta (hex):', acc.color)
-              const region = prompt('Região:', acc.region)
-              const patch: Partial<Account> = {}
-              if (color && /^#[0-9a-fA-F]{3,8}$/.test(color)) patch.color = color
-              if (region && region.trim()) patch.region = region.trim()
-              if (Object.keys(patch).length > 0) updateAccount(acc.id, patch)
-            }}
-          >
+          <button className="btn small" onClick={() => setEditing(acc)}>
             Editar
           </button>
           <button
@@ -78,9 +66,7 @@ function AccountsSection() {
             title="Excluir conta"
             onClick={() => {
               if (
-                confirm(
-                  `Excluir "${acc.name}"? Isso apaga TODOS os lançamentos da conta. Não dá para desfazer.`,
-                )
+                confirm(`Excluir "${acc.name}"? Isso apaga todos os check-ins e resgates. Não dá para desfazer.`)
               ) {
                 deleteAccount(acc.id)
               }
@@ -100,17 +86,30 @@ function AccountsSection() {
           }}
         />
       )}
-      {editingTasks && (
-        <TasksModal
-          account={editingTasks}
-          onClose={() => setEditingTasks(null)}
-          onSave={(tasks) => {
-            updateAccount(editingTasks.id, { tasks })
-            setEditingTasks(null)
+      {editing && (
+        <EditAccountModal
+          account={editing}
+          onClose={() => setEditing(null)}
+          onSave={(patch) => {
+            updateAccount(editing.id, patch)
+            setEditing(null)
           }}
         />
       )}
     </div>
+  )
+}
+
+function PlanField({ plan, setPlan }: { plan: GamePassPlan; setPlan: (p: GamePassPlan) => void }) {
+  return (
+    <Field label="Plano do Game Pass">
+      <select value={plan} onChange={(e) => setPlan(e.target.value as GamePassPlan)}>
+        <option value="NONE">Sem Game Pass</option>
+        <option value="ESSENTIAL">Game Pass Essential</option>
+        <option value="PREMIUM">Game Pass Premium</option>
+        <option value="ULTIMATE">Game Pass Ultimate</option>
+      </select>
+    </Field>
   )
 }
 
@@ -144,7 +143,7 @@ function AddSimpleAccountModal({
           value={name}
           autoFocus
           onChange={(e) => setName(e.target.value)}
-          placeholder="Ex.: Conta EUA"
+          placeholder="Ex.: Conta principal"
         />
       </Field>
       <Field label="Região">
@@ -154,14 +153,7 @@ function AddSimpleAccountModal({
           <option>Outro</option>
         </select>
       </Field>
-      <Field label="Plano do Game Pass">
-        <select value={plan} onChange={(e) => setPlan(e.target.value as GamePassPlan)}>
-          <option value="NONE">Sem Game Pass</option>
-          <option value="ESSENTIAL">Game Pass Essential</option>
-          <option value="PREMIUM">Game Pass Premium</option>
-          <option value="ULTIMATE">Game Pass Ultimate</option>
-        </select>
-      </Field>
+      <PlanField plan={plan} setPlan={setPlan} />
       <div className="grid grid-2" style={{ gap: 12 }}>
         <Field label="Saldo atual (pontos)">
           <input type="number" min={0} value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0" />
@@ -170,6 +162,7 @@ function AddSimpleAccountModal({
           <input type="number" min={0} value={streak} onChange={(e) => setStreak(e.target.value)} placeholder="0" />
         </Field>
       </div>
+      <p className="muted">Conta existente? Informe o saldo e a sequência atuais.</p>
       <div className="modal-actions">
         <button className="btn" onClick={onClose}>
           Cancelar
@@ -182,88 +175,63 @@ function AddSimpleAccountModal({
   )
 }
 
-function TasksModal({
+function EditAccountModal({
   account,
   onClose,
   onSave,
 }: {
   account: Account
   onClose: () => void
-  onSave: (tasks: Task[]) => void
+  onSave: (patch: Partial<Account>) => void
 }) {
-  const [tasks, setTasks] = useState<Task[]>(account.tasks)
+  const [name, setName] = useState(account.name)
+  const [region, setRegion] = useState(account.region)
+  const [plan, setPlan] = useState<GamePassPlan>(account.plan)
+  const [balance, setBalance] = useState(String(account.openingBalance))
+  const [streak, setStreak] = useState(String(account.openingStreak))
+  const [color, setColor] = useState(account.color)
 
-  const patch = (id: string, p: Partial<Task>) =>
-    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)))
+  const submit = () => {
+    if (!name.trim()) return
+    onSave({
+      name: name.trim(),
+      region,
+      plan,
+      openingBalance: Math.max(0, Number(balance) || 0),
+      openingStreak: Math.max(0, Number(streak) || 0),
+      color,
+    })
+  }
 
   return (
-    <Modal title={`Tarefas — ${account.name}`} onClose={onClose}>
-      {tasks.map((t) => (
-        <div key={t.id} className="entry">
-          <input
-            type="checkbox"
-            checked={t.enabled}
-            onChange={(e) => patch(t.id, { enabled: e.target.checked })}
-            style={{ width: 'auto', flex: 'none' }}
-          />
-          <input
-            type="text"
-            value={t.name}
-            onChange={(e) => patch(t.id, { name: e.target.value })}
-            style={{ flex: 2 }}
-          />
-          {t.builtin ? (
-            <span
-              className="muted"
-              style={{ flex: '0 0 84px', textAlign: 'right', fontSize: 12 }}
-              title="Pontos definidos pela tabela (plano/dia do ciclo)"
-            >
-              tabela
-            </span>
-          ) : (
-            <input
-              type="number"
-              min={0}
-              value={t.points}
-              onChange={(e) => patch(t.id, { points: Number(e.target.value) })}
-              style={{ flex: '0 0 84px', textAlign: 'right' }}
-            />
-          )}
-          <select
-            value={t.frequency}
-            onChange={(e) => patch(t.id, { frequency: e.target.value as Frequency })}
-            style={{ flex: '0 0 110px' }}
-          >
-            <option value="daily">Diária</option>
-            <option value="weekly">Semanal</option>
-            <option value="monthly">Mensal</option>
-          </select>
-          <button
-            className="btn icon-only small"
-            style={{ color: 'var(--danger)', flex: 'none' }}
-            onClick={() => setTasks((ts) => ts.filter((x) => x.id !== t.id))}
-          >
-            <IconTrash size={14} />
-          </button>
-        </div>
-      ))}
-      <button
-        className="btn small"
-        style={{ marginTop: 10 }}
-        onClick={() =>
-          setTasks((ts) => [
-            ...ts,
-            { id: uid(), name: 'Nova tarefa', points: 10, frequency: 'daily', enabled: true },
-          ])
-        }
-      >
-        <IconPlus size={14} /> Adicionar tarefa
-      </button>
+    <Modal title={`Editar — ${account.name}`} onClose={onClose}>
+      <Field label="Nome da conta">
+        <input type="text" value={name} autoFocus onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label="Região">
+        <select value={region} onChange={(e) => setRegion(e.target.value)}>
+          <option>Brasil</option>
+          <option>EUA</option>
+          <option>Outro</option>
+        </select>
+      </Field>
+      <PlanField plan={plan} setPlan={setPlan} />
+      <div className="grid grid-2" style={{ gap: 12 }}>
+        <Field label="Saldo de abertura (pontos)">
+          <input type="number" min={0} value={balance} onChange={(e) => setBalance(e.target.value)} />
+        </Field>
+        <Field label="Sequência de abertura (dias)">
+          <input type="number" min={0} value={streak} onChange={(e) => setStreak(e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Cor da conta">
+        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} style={{ height: 40 }} />
+      </Field>
       <div className="modal-actions">
         <button className="btn" onClick={onClose}>
           Cancelar
         </button>
-        <button className="btn primary" onClick={() => onSave(tasks)}>
+        <button className="btn primary" onClick={submit} disabled={!name.trim()}>
           Salvar
         </button>
       </div>
@@ -320,8 +288,8 @@ function NotifySection({
       ) : (
         <>
           <p className="muted">
-            Aviso no horário definido caso você ainda não tenha registrado nenhuma tarefa do dia —
-            perfeito para não perder o streak. (O app precisa estar aberto ou instalado.)
+            Aviso no horário definido caso você ainda não tenha feito o check-in de hoje — perfeito
+            para não perder a sequência. (O app precisa estar aberto ou instalado.)
           </p>
           <div className="row" style={{ maxWidth: 420, alignItems: 'end' }}>
             <button
@@ -330,15 +298,13 @@ function NotifySection({
                 if (!data.settings.notifyEnabled) {
                   const granted = await requestNotifyPermission()
                   if (!granted) {
-                    alert(
-                      'Permissão de notificação negada. Ative nas configurações do navegador/Windows.',
-                    )
+                    alert('Permissão de notificação negada. Ative nas configurações do navegador/Windows.')
                     return
                   }
                   setSettings({ notifyEnabled: true })
                   showNotification(
                     'Meu Rewards ✅',
-                    'Lembretes ativados! Te aviso se você esquecer os pontos do dia.',
+                    'Lembretes ativados! Te aviso se você esquecer o check-in do dia.',
                   )
                 } else {
                   setSettings({ notifyEnabled: false })
@@ -389,8 +355,8 @@ function DataSection() {
     const reader = new FileReader()
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(String(reader.result)) as AppData
-        if (!parsed.accounts || !parsed.entries) throw new Error('formato inválido')
+        const parsed = JSON.parse(String(reader.result))
+        if (!parsed.accounts) throw new Error('formato inválido')
         if (confirm('Importar vai SUBSTITUIR os dados atuais. Continuar?')) {
           importData(parsed)
         }
@@ -409,9 +375,9 @@ function DataSection() {
         <strong>Sincronização com OneDrive</strong>
         <p className="muted">
           Conecte um arquivo <code>.json</code> dentro da pasta do OneDrive (ex.:{' '}
-          <code>PROJETOS\REWARDS\rewards-data.json</code>) e o app grava nele automaticamente a
-          cada alteração. Assim os dados ficam disponíveis no seu PC e celular. Requer Edge ou
-          Chrome. <strong>Nota:</strong> use em um aparelho por vez — o último salvamento vence.
+          <code>PROJETOS\REWARDS\rewards-data.json</code>) e o app grava nele automaticamente a cada
+          alteração. Assim os dados ficam disponíveis no seu PC e celular. Requer Edge ou Chrome.{' '}
+          <strong>Nota:</strong> use em um aparelho por vez — o último salvamento vence.
         </p>
         {!fsApiSupported() ? (
           <span className="pill warning">Seu navegador não suporta a sincronização de arquivo</span>
@@ -442,9 +408,7 @@ function DataSection() {
 
       <div>
         <strong>Exportar / importar backup</strong>
-        <p className="muted">
-          Exporte um arquivo .json de backup ou restaure de um backup anterior.
-        </p>
+        <p className="muted">Exporte um arquivo .json de backup ou restaure de um backup anterior.</p>
         <div className="row" style={{ flex: 'none', gap: 8 }}>
           <button className="btn" onClick={exportFile}>
             Exportar backup
@@ -468,4 +432,3 @@ function DataSection() {
     </div>
   )
 }
-

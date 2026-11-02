@@ -123,3 +123,34 @@ export const IconCoin = (p: IconProps) =>
     </>,
     p,
   )
+
+export const IconCalendar = (p: IconProps) =>
+  svg(
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 3v4M16 3v4" />
+      <circle cx="8" cy="13" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="13" r="1" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="13" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="17" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+    </>,
+    p,
+  )
+
+export const IconPuzzle = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M10 3.5a2 2 0 1 1 4 0H18a1 1 0 0 1 1 1v3.5a2 2 0 1 1 0 4V17a1 1 0 0 1-1 1h-4.5a2 2 0 1 0-4 0H5a1 1 0 0 1-1-1v-3.5a2 2 0 1 0 0-4V4.5a1 1 0 0 1 1-1h5z" />
+    </>,
+    p,
+  )
+
+export const IconChevron = ({
+  size = 20,
+  className,
+  dir = 'right',
+}: IconProps & { dir?: 'left' | 'right' }) => {
+  const d = dir === 'left' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'
+  return svg(<path d={d} />, { size, className })
+}
