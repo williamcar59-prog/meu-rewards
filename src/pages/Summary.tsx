@@ -1,22 +1,21 @@
-// Página: Resumo geral — saldos, ganho do mês e check-in rápido
+// Página: Resumo — um cartão por conta (sem total consolidado)
 
 import { useState } from 'react'
 import { useStore } from '../store'
 import { CheckInModal } from '../components/CheckInModal'
-import { IconCheck, IconGift } from '../components/Icons'
-import { fmtPoints, StatCard } from '../components/ui'
+import { IconCheck, IconGift, IconPlus } from '../components/Icons'
+import { fmtPoints } from '../components/ui'
 import {
-  checkedInOn,
   currentBalance,
+  monthlyReport,
   PIECE_GOAL,
   puzzleProgress,
   redeemSummary,
   streakOf,
-  totalBalance,
-  totalMonthlyReport,
 } from '../utils/calc'
 import { todayISO } from '../utils/dates'
 import { PLAN_LABELS } from '../data/rewardsTable'
+import { Account } from '../types'
 
 export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
   const { data } = useStore()
@@ -40,68 +39,105 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
     )
   }
 
-  const now = new Date()
-  const month = totalMonthlyReport(data, now.getFullYear(), now.getMonth() + 1)
-  const redeems = redeemSummary(data, null)
-  const puzzle = puzzleProgress(data, null)
   const today = todayISO()
 
   return (
     <div>
-      <h1 className="page-title">Resumo</h1>
-      <p className="page-sub">Visão consolidada de todas as suas contas</p>
-
-      <div className="grid grid-4">
-        <StatCard label="Saldo total" value={fmtPoints(totalBalance(data))} sub="pontos somados" />
-        <StatCard
-          label="Ganho do mês"
-          value={`+${fmtPoints(month.netEarned)}`}
-          sub="líquido, mesmo resgatando"
-        />
-        <StatCard label="Resgatado" value={fmtPoints(redeems.totalPoints)} sub={`${redeems.count} resgate(s)`} />
-        <StatCard
-          label="Peças 🧩"
-          value={`${puzzle.total}`}
-          sub={`troféu ${puzzle.filled}/${PIECE_GOAL} · ${puzzle.completed} completo(s)`}
-        />
+      <div className="flex-between">
+        <div>
+          <h1 className="page-title">Resumo</h1>
+          <p className="page-sub">Suas contas — cada uma com seu saldo, mês e sequência</p>
+        </div>
+        <button className="btn" onClick={onGoAccounts}>
+          <IconPlus size={16} /> Nova conta
+        </button>
       </div>
 
-      <div className="card section-gap">
-        <h3>Contas</h3>
-        {data.accounts.map((acc) => {
-          const doneToday = checkedInOn(data, acc.id, today)
-          const streak = streakOf(data, acc.id)
-          return (
-            <div key={acc.id} className="entry">
-              <span className="account-dot" style={{ background: acc.color }} />
-              <span className="entry-label">
-                <strong>{acc.name}</strong>
-                <span className="muted">
-                  {' '}
-                  · {PLAN_LABELS[acc.plan]}
-                  {streak.current > 0 && <> · 🔥 {streak.current} dias</>}
-                </span>
-              </span>
-              <span className="entry-points pos">{fmtPoints(currentBalance(data, acc.id))}</span>
-              {doneToday ? (
-                <span className="pill green">✓ Hoje</span>
-              ) : (
-                <button className="btn small primary" onClick={() => setCheckInFor(acc.id)}>
-                  <IconCheck size={14} /> Check-in
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {data.accounts.map((acc) => (
+        <AccountCard key={acc.id} account={acc} onCheckIn={() => setCheckInFor(acc.id)} />
+      ))}
 
-      <p className="muted">
+      <p className="muted section-gap">
         Abra <strong>Calendário</strong> para ver o relatório do mês e o histórico de check-ins.
       </p>
 
       {checkInFor && (
         <CheckInModal accountId={checkInFor} date={today} onClose={() => setCheckInFor(null)} />
       )}
+    </div>
+  )
+}
+
+function AccountCard({
+  account,
+  onCheckIn,
+}: {
+  account: Account
+  onCheckIn: () => void
+}) {
+  const { data } = useStore()
+  const now = new Date()
+  const bal = currentBalance(data, account.id)
+  const month = monthlyReport(data, account.id, now.getFullYear(), now.getMonth() + 1)
+  const redeems = redeemSummary(data, account.id)
+  const puzzle = puzzleProgress(data, account.id)
+  const streak = streakOf(data, account.id)
+
+  return (
+    <div className="card section-gap">
+      <div className="flex-between">
+        <div className="row" style={{ gap: 10 }}>
+          <span className="account-dot" style={{ background: account.color }} />
+          <div>
+            <div style={{ fontWeight: 600 }}>{account.name}</div>
+            <div className="muted">
+              {account.region} · {PLAN_LABELS[account.plan]}
+            </div>
+          </div>
+        </div>
+        <div className="row" style={{ gap: 8, flex: 'none' }}>
+          <span className="pill">🔥 {streak.current} dias</span>
+          {streak.todayDone ? (
+            <span className="pill green">✓ Hoje</span>
+          ) : (
+            <button className="btn small primary" onClick={onCheckIn}>
+              <IconCheck size={14} /> Check-in
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-4" style={{ marginTop: 16 }}>
+        <div className="stat-card">
+          <div className="stat-label">Saldo</div>
+          <div className="stat-value">{fmtPoints(bal)}</div>
+          <div className="stat-sub">pontos</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Ganho do mês</div>
+          <div
+            className="stat-value"
+            style={{ color: month.netEarned >= 0 ? 'var(--success)' : 'var(--danger)' }}
+          >
+            {month.netEarned >= 0 ? '+' : ''}
+            {fmtPoints(month.netEarned)}
+          </div>
+          <div className="stat-sub">líquido</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Resgates</div>
+          <div className="stat-value">{fmtPoints(redeems.totalPoints)}</div>
+          <div className="stat-sub">{redeems.count} resgate(s)</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Peças 🧩</div>
+          <div className="stat-value">{puzzle.total}</div>
+          <div className="stat-sub">
+            troféu {puzzle.filled}/{PIECE_GOAL}
+            {puzzle.completed > 0 && ` · ${puzzle.completed} prêmio(s)`}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -10,26 +10,56 @@ import { fmtDate, todayISO } from '../utils/dates'
 export function RedeemsPage() {
   const { data, addRedemption, deleteRedemption } = useStore()
   const [showAdd, setShowAdd] = useState(false)
+  const [accountId, setAccountId] = useState(data.accounts[0]?.id ?? '')
+
+  const account = data.accounts.find((a) => a.id === accountId) ?? data.accounts[0]
+  const accId = account?.id
 
   const redeems = data.redemptions
+    .filter((r) => r.accountId === accId)
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : -1))
 
-  const total = redeemSummary(data, null)
+  const total = redeemSummary(data, accId ?? null)
+
+  if (data.accounts.length === 0) {
+    return (
+      <div>
+        <h1 className="page-title">Resgates</h1>
+        <div className="card">
+          <p className="muted">Crie uma conta em Configurações para registrar resgates.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
       <div className="flex-between">
         <div>
           <h1 className="page-title">Resgates</h1>
-          <p className="page-sub">Registre onde você usou os pontos</p>
+          <p className="page-sub">Escolha a conta e registre onde ela usou os pontos</p>
         </div>
         <button className="btn primary" onClick={() => setShowAdd(true)}>
           <IconPlus size={16} /> Novo resgate
         </button>
       </div>
 
-      <div className="grid grid-3">
+      {data.accounts.length > 1 && (
+        <div className="tabs" style={{ marginTop: 8 }}>
+          {data.accounts.map((a) => (
+            <button
+              key={a.id}
+              className={`tab${a.id === accId ? ' active' : ''}`}
+              onClick={() => setAccountId(a.id)}
+            >
+              {a.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-3 section-gap">
         <StatCard label="Total resgatado" value={fmtPoints(total.totalPoints)} sub="pontos" />
         <StatCard label="Quantidade" value={`${total.count}`} sub="resgate(s)" />
         <StatCard
@@ -47,40 +77,32 @@ export function RedeemsPage() {
             text="Quando usar pontos, registre aqui em que gastou e quanto."
           />
         ) : (
-          redeems.map((r) => {
-            const acc = data.accounts.find((a) => a.id === r.accountId)
-            return (
-              <div key={r.id} className="entry">
-                <span className="entry-points neg">−{fmtPoints(r.points)}</span>
-                <span className="entry-label">
-                  <strong>{r.usedFor}</strong>
-                  {acc && (
-                    <>
-                      {' '}
-                      <span className="muted">· {acc.name}</span>
-                    </>
-                  )}
-                </span>
-                <span className="entry-date">{fmtDate(r.date)}</span>
-                <button
-                  className="btn icon-only small"
-                  title="Excluir"
-                  onClick={() => deleteRedemption(r.id)}
-                  style={{ color: 'var(--danger)' }}
-                >
-                  <IconTrash size={14} />
-                </button>
-              </div>
-            )
-          })
+          redeems.map((r) => (
+            <div key={r.id} className="entry">
+              <span className="entry-points neg">−{fmtPoints(r.points)}</span>
+              <span className="entry-label">
+                <strong>{r.usedFor}</strong>
+              </span>
+              <span className="entry-date">{fmtDate(r.date)}</span>
+              <button
+                className="btn icon-only small"
+                title="Excluir"
+                onClick={() => deleteRedemption(r.id)}
+                style={{ color: 'var(--danger)' }}
+              >
+                <IconTrash size={14} />
+              </button>
+            </div>
+          ))
         )}
       </div>
 
       {showAdd && (
         <RedeemModal
+          initialAccountId={accId}
           onClose={() => setShowAdd(false)}
-          onAdd={(accountId, points, usedFor, date) => {
-            addRedemption(accountId, date, points, usedFor)
+          onAdd={(id, points, usedFor, date) => {
+            addRedemption(id, date, points, usedFor)
             setShowAdd(false)
           }}
         />
@@ -90,14 +112,18 @@ export function RedeemsPage() {
 }
 
 function RedeemModal({
+  initialAccountId,
   onClose,
   onAdd,
 }: {
+  initialAccountId?: string
   onClose: () => void
   onAdd: (accountId: string, points: number, usedFor: string, date: string) => void
 }) {
   const { data } = useStore()
-  const [accountId, setAccountId] = useState(data.accounts[0]?.id ?? '')
+  const [accountId, setAccountId] = useState(
+    initialAccountId || data.accounts[0]?.id || '',
+  )
   const [points, setPoints] = useState('')
   const [usedFor, setUsedFor] = useState('')
   const [date, setDate] = useState(todayISO())

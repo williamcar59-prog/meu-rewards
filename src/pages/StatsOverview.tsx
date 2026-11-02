@@ -1,5 +1,6 @@
-// Página: Estatísticas gerais (todas as contas)
+// Página: Estatísticas — desempenho de uma conta selecionada (sem total consolidado)
 
+import { useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -13,20 +14,44 @@ import {
   YAxis,
 } from 'recharts'
 import { useStore } from '../store'
-import { balanceSeries, currentBalance, monthlyNetSeries, PIECE_GOAL, puzzleProgress, redeemSummary, totalBalance, totalMonthlyReport } from '../utils/calc'
+import {
+  balanceSeries,
+  currentBalance,
+  monthlyNetSeries,
+  monthlyReport,
+  PIECE_GOAL,
+  puzzleProgress,
+  redeemSummary,
+} from '../utils/calc'
 import { fmtPoints, StatCard } from '../components/ui'
 
 export function StatsOverviewPage() {
   const { data } = useStore()
+  const [accountId, setAccountId] = useState(data.accounts[0]?.id ?? '')
+
+  if (data.accounts.length === 0) {
+    return (
+      <div>
+        <h1 className="page-title">Estatísticas</h1>
+        <div className="card">
+          <p className="muted">Crie uma conta em Configurações para ver as estatísticas.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const account = data.accounts.find((a) => a.id === accountId) ?? data.accounts[0]
+  const accId = account.id
 
   const now = new Date()
-  const thisMonth = totalMonthlyReport(data, now.getFullYear(), now.getMonth() + 1)
-  const series = balanceSeries(data, null).slice(-60)
+  const month = monthlyReport(data, accId, now.getFullYear(), now.getMonth() + 1)
+  const series = balanceSeries(data, accId).slice(-60)
   // mesma série, mas com o saldo visível apenas nos dias que houve resgate (ponto vermelho)
   const markSeries = series.map((p) => ({ ...p, mark: p.redeemed > 0 ? p.total : null }))
-  const monthly = monthlyNetSeries(data, 6)
-  const redeems = redeemSummary(data, null)
-  const statsPuzzle = puzzleProgress(data, null)
+  const monthly = monthlyNetSeries(data, accId, 6)
+  const redeems = redeemSummary(data, accId)
+  const puzzle = puzzleProgress(data, accId)
+  const bal = currentBalance(data, accId)
 
   const textStyle = 'var(--text-secondary)'
   const tipStyle = {
@@ -38,17 +63,35 @@ export function StatsOverviewPage() {
 
   return (
     <div>
-      <h1 className="page-title">Estatísticas</h1>
-      <p className="page-sub">Desempenho consolidado de todas as contas</p>
+      <div className="flex-between">
+        <div>
+          <h1 className="page-title">Estatísticas</h1>
+          <p className="page-sub">Escolha a conta para ver o desempenho dela</p>
+        </div>
+      </div>
 
-      <div className="grid grid-4">
-        <StatCard label="Ganho do mês" value={`+${fmtPoints(thisMonth.netEarned)}`} sub="líquido" />
-        <StatCard label="Saldo total" value={fmtPoints(totalBalance(data))} sub="pontos" />
+      {data.accounts.length > 1 && (
+        <div className="tabs" style={{ marginTop: 8 }}>
+          {data.accounts.map((a) => (
+            <button
+              key={a.id}
+              className={`tab${a.id === accId ? ' active' : ''}`}
+              onClick={() => setAccountId(a.id)}
+            >
+              {a.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-4 section-gap">
+        <StatCard label="Ganho do mês" value={`+${fmtPoints(month.netEarned)}`} sub="líquido" />
+        <StatCard label="Saldo" value={fmtPoints(bal)} sub="pontos" />
         <StatCard label="Resgates" value={`${redeems.count}`} sub={`${fmtPoints(redeems.totalPoints)} pts`} />
         <StatCard
           label="Peças 🧩"
-          value={`${statsPuzzle.total}`}
-          sub={`troféu ${statsPuzzle.filled}/${PIECE_GOAL} · ${statsPuzzle.completed} completo(s)`}
+          value={`${puzzle.total}`}
+          sub={`troféu ${puzzle.filled}/${PIECE_GOAL} · ${puzzle.completed} completo(s)`}
         />
       </div>
 
@@ -115,17 +158,6 @@ export function StatsOverviewPage() {
         <p className="muted" style={{ marginBottom: 0 }}>
           Os pontos vermelhos marcam os dias em que você usou pontos.
         </p>
-      </div>
-
-      <div className="card section-gap">
-        <h3>Saldo por conta</h3>
-        {data.accounts.map((acc) => (
-          <div key={acc.id} className="entry">
-            <span className="account-dot" style={{ background: acc.color }} />
-            <span className="entry-label">{acc.name}</span>
-            <span className="entry-points pos">{fmtPoints(currentBalance(data, acc.id))}</span>
-          </div>
-        ))}
       </div>
     </div>
   )

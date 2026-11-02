@@ -239,6 +239,7 @@ export function totalMonthlyReport(data: AppData, year: number, month: number): 
 /** Série de ganho líquido dos últimos N meses (para gráfico) */
 export function monthlyNetSeries(
   data: AppData,
+  accountId: string | null,
   months = 6,
 ): { month: string; value: number; redeemed: number }[] {
   const now = new Date()
@@ -247,7 +248,8 @@ export function monthlyNetSeries(
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const y = d.getFullYear()
     const m = d.getMonth() + 1
-    const rep = totalMonthlyReport(data, y, m)
+    const rep =
+      accountId === null ? totalMonthlyReport(data, y, m) : monthlyReport(data, accountId, y, m)
     out.push({ month: `${y}-${pad(m)}`, value: rep.netEarned, redeemed: rep.redeemed })
   }
   return out
