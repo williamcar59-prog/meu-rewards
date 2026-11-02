@@ -8,7 +8,8 @@ import { fmtPoints, StatCard } from '../components/ui'
 import {
   checkedInOn,
   currentBalance,
-  piecesTotal,
+  PIECE_GOAL,
+  puzzleProgress,
   redeemSummary,
   streakOf,
   totalBalance,
@@ -42,6 +43,7 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
   const now = new Date()
   const month = totalMonthlyReport(data, now.getFullYear(), now.getMonth() + 1)
   const redeems = redeemSummary(data, null)
+  const puzzle = puzzleProgress(data, null)
   const today = todayISO()
 
   return (
@@ -57,7 +59,11 @@ export function SummaryPage({ onGoAccounts }: { onGoAccounts: () => void }) {
           sub="líquido, mesmo resgatando"
         />
         <StatCard label="Resgatado" value={fmtPoints(redeems.totalPoints)} sub={`${redeems.count} resgate(s)`} />
-        <StatCard label="Peças 🧩" value={fmtPoints(piecesTotal(data, null))} sub="de quebra-cabeça" />
+        <StatCard
+          label="Peças 🧩"
+          value={`${puzzle.total}`}
+          sub={`troféu ${puzzle.filled}/${PIECE_GOAL} · ${puzzle.completed} completo(s)`}
+        />
       </div>
 
       <div className="card section-gap">

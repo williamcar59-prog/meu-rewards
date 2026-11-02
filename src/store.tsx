@@ -38,6 +38,7 @@ interface StoreValue {
     plan: GamePassPlan,
     openingBalance: number,
     openingStreak: number,
+    openingPieces: number,
   ) => Account
   updateAccount: (id: string, patch: Partial<Account>) => void
   deleteAccount: (id: string) => void
@@ -137,6 +138,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       plan: GamePassPlan,
       openingBalance: number,
       openingStreak: number,
+      openingPieces: number,
     ): Account => {
       const account: Account = {
         id: uid(),
@@ -145,6 +147,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         plan,
         openingBalance: Math.max(0, Math.round(openingBalance)),
         openingStreak: Math.max(0, Math.round(openingStreak)),
+        openingPieces: Math.max(0, Math.round(openingPieces)),
         color: ACCOUNT_COLORS[Math.floor(Math.random() * ACCOUNT_COLORS.length)],
         createdAt: todayISO(),
       }

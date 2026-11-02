@@ -108,10 +108,40 @@ export function streakOf(data: AppData, accountId: string): StreakInfo {
 
 // ---------------------------------------------------------------- Peças de quebra-cabeça
 
+/** Peças necessárias para completar o troféu. */
+export const PIECE_GOAL = 12
+/** Pontos ganhos ao completar o troféu (a cada 12 peças). */
+export const PIECE_REWARD = 1000
+
+/** Total de peças da conta (abertura + check-ins). accountId null = todas as contas. */
 export function piecesTotal(data: AppData, accountId: string | null): number {
-  return data.checkIns
+  const opening =
+    accountId === null
+      ? data.accounts.reduce((s, a) => s + (a.openingPieces || 0), 0)
+      : data.accounts.find((a) => a.id === accountId)?.openingPieces ?? 0
+  const fromCheckIns = data.checkIns
     .filter((c) => accountId === null || c.accountId === accountId)
     .reduce((s, c) => s + (c.pieces || 0), 0)
+  return opening + fromCheckIns
+}
+
+export interface PuzzleProgress {
+  total: number // total de peças já ganhas
+  filled: number // peças do troféu atual (0..PIECE_GOAL)
+  completed: number // troféus já completos
+  toNext: number // peças que faltam para o próximo troféu
+  isComplete: boolean // troféu atual completo (premia +1.000)
+}
+
+/** Progresso do troféu: 12 peças completam um troféu e valem 1.000 pontos. */
+export function puzzleProgress(data: AppData, accountId: string | null): PuzzleProgress {
+  const total = piecesTotal(data, accountId)
+  const filled = total === 0 ? 0 : ((total - 1) % PIECE_GOAL) + 1
+  const completed = Math.floor(total / PIECE_GOAL)
+  const isComplete = filled === PIECE_GOAL
+  const mod = total % PIECE_GOAL
+  const toNext = total === 0 ? PIECE_GOAL : mod === 0 ? 0 : PIECE_GOAL - mod
+  return { total, filled, completed, toNext, isComplete }
 }
 
 export function piecesInMonth(data: AppData, accountId: string, first: string, last: string): number {

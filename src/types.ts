@@ -9,6 +9,7 @@ export interface Account {
   plan: GamePassPlan // plano do Game Pass (referência)
   openingBalance: number // saldo (pontos) quando a conta foi criada
   openingStreak: number // sequência (dias) quando a conta foi criada
+  openingPieces: number // peças de quebra-cabeça já ganhas na conta
   color: string
   createdAt: string // ISO date YYYY-MM-DD
 }
@@ -75,6 +76,7 @@ function normalizeAccount(a: Partial<Account>): Account {
     plan: (a.plan as GamePassPlan) ?? 'NONE',
     openingBalance: a.openingBalance ?? 0,
     openingStreak: a.openingStreak ?? 0,
+    openingPieces: a.openingPieces ?? 0,
     color: a.color ?? ACCOUNT_COLORS[0],
     createdAt: a.createdAt ?? new Date().toISOString().slice(0, 10),
   }

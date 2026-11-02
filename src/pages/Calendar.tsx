@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useStore } from '../store'
 import { CheckInModal } from '../components/CheckInModal'
+import { PuzzleTrophy } from '../components/PuzzleTrophy'
 import { IconCheck, IconChevron } from '../components/Icons'
 import { fmtPoints, StatCard } from '../components/ui'
 import {
@@ -216,6 +217,10 @@ export function CalendarPage() {
             <p className="muted" style={{ marginBottom: 0, marginTop: 12 }}>
               {report.daysChecked} dia(s) com check-in · 🧩 {report.pieces} peça(s) no mês
             </p>
+          </div>
+
+          <div className="section-gap">
+            <PuzzleTrophy accountId={accId} />
           </div>
 
           <div className="grid grid-2 section-gap">

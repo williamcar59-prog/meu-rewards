@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useStore } from '../store'
-import { balanceSeries, currentBalance, monthlyNetSeries, piecesTotal, redeemSummary, totalBalance, totalMonthlyReport } from '../utils/calc'
+import { balanceSeries, currentBalance, monthlyNetSeries, PIECE_GOAL, puzzleProgress, redeemSummary, totalBalance, totalMonthlyReport } from '../utils/calc'
 import { fmtPoints, StatCard } from '../components/ui'
 
 export function StatsOverviewPage() {
@@ -23,6 +23,7 @@ export function StatsOverviewPage() {
   const series = balanceSeries(data, null).slice(-60)
   const monthly = monthlyNetSeries(data, 6)
   const redeems = redeemSummary(data, null)
+  const statsPuzzle = puzzleProgress(data, null)
 
   const textStyle = 'var(--text-secondary)'
   const tipStyle = {
@@ -41,7 +42,11 @@ export function StatsOverviewPage() {
         <StatCard label="Ganho do mês" value={`+${fmtPoints(thisMonth.netEarned)}`} sub="líquido" />
         <StatCard label="Saldo total" value={fmtPoints(totalBalance(data))} sub="pontos" />
         <StatCard label="Resgates" value={`${redeems.count}`} sub={`${fmtPoints(redeems.totalPoints)} pts`} />
-        <StatCard label="Peças 🧩" value={`${piecesTotal(data, null)}`} sub="de quebra-cabeça" />
+        <StatCard
+          label="Peças 🧩"
+          value={`${statsPuzzle.total}`}
+          sub={`troféu ${statsPuzzle.filled}/${PIECE_GOAL} · ${statsPuzzle.completed} completo(s)`}
+        />
       </div>
 
       <div className="card section-gap">

@@ -619,6 +619,112 @@ textarea:focus {
   font-size: 13px;
 }
 
+/* ---------- Troféu de peças (4×3) ---------- */
+
+.trophy-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-top: 14px;
+  background: #16233c;
+}
+
+.trophy-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.trophy-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.trophy-cell {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* bloco ainda escondido: cobre a imagem com um " véu" */
+.trophy-cell.locked {
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.trophy-cell.locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    135deg,
+    rgba(128, 128, 128, 0.12) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(128, 128, 128, 0.12) 50%,
+    rgba(128, 128, 128, 0.12) 75%,
+    transparent 75%
+  );
+  background-size: 12px 12px;
+  opacity: 0.6;
+}
+
+.trophy-cell.open {
+  animation: trophy-reveal 0.45s ease-out;
+}
+
+@keyframes trophy-reveal {
+  from { background: rgba(247, 201, 72, 0.55); }
+  to { background: transparent; }
+}
+
+.trophy-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(14px, 4vw, 22px);
+  opacity: 0.5;
+  z-index: 1;
+}
+
+.trophy-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  background: var(--success);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
+  animation: trophy-pop 0.4s ease-out;
+}
+
+@keyframes trophy-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.trophy-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+}
+
 /* ---------- Responsivo ---------- */
 
 @media (max-width: 980px) {

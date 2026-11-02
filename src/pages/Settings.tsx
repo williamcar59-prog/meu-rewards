@@ -80,8 +80,8 @@ function AccountsSection() {
       {showAdd && (
         <AddSimpleAccountModal
           onClose={() => setShowAdd(false)}
-          onAdd={(name, region, plan, openingBalance, openingStreak) => {
-            addAccount(name, region, plan, openingBalance, openingStreak)
+          onAdd={(name, region, plan, openingBalance, openingStreak, openingPieces) => {
+            addAccount(name, region, plan, openingBalance, openingStreak, openingPieces)
             setShowAdd(false)
           }}
         />
@@ -124,6 +124,7 @@ function AddSimpleAccountModal({
     plan: GamePassPlan,
     openingBalance: number,
     openingStreak: number,
+    openingPieces: number,
   ) => void
 }) {
   const [name, setName] = useState('')
@@ -131,9 +132,18 @@ function AddSimpleAccountModal({
   const [plan, setPlan] = useState<GamePassPlan>('NONE')
   const [balance, setBalance] = useState('')
   const [streak, setStreak] = useState('')
+  const [pieces, setPieces] = useState('')
 
   const submit = () =>
-    name.trim() && onAdd(name.trim(), region, plan, Number(balance) || 0, Number(streak) || 0)
+    name.trim() &&
+    onAdd(
+      name.trim(),
+      region,
+      plan,
+      Number(balance) || 0,
+      Number(streak) || 0,
+      Number(pieces) || 0,
+    )
 
   return (
     <Modal title="Nova conta" onClose={onClose}>
@@ -154,15 +164,27 @@ function AddSimpleAccountModal({
         </select>
       </Field>
       <PlanField plan={plan} setPlan={setPlan} />
-      <div className="grid grid-2" style={{ gap: 12 }}>
+      <div className="grid grid-3" style={{ gap: 12 }}>
         <Field label="Saldo atual (pontos)">
           <input type="number" min={0} value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0" />
         </Field>
-        <Field label="Sequência atual (dias)">
+        <Field label="Sequência (dias)">
           <input type="number" min={0} value={streak} onChange={(e) => setStreak(e.target.value)} placeholder="0" />
         </Field>
+        <Field label="Peças 🧩 já ganhas">
+          <input
+            type="number"
+            min={0}
+            value={pieces}
+            onChange={(e) => setPieces(e.target.value)}
+            placeholder="0"
+          />
+        </Field>
       </div>
-      <p className="muted">Conta existente? Informe o saldo e a sequência atuais.</p>
+      <p className="muted">
+        Conta existente? Informe saldo, sequência e as peças do troféu atuais — 12 peças completam o
+        troféu e valem 1.000 pontos.
+      </p>
       <div className="modal-actions">
         <button className="btn" onClick={onClose}>
           Cancelar
@@ -189,6 +211,7 @@ function EditAccountModal({
   const [plan, setPlan] = useState<GamePassPlan>(account.plan)
   const [balance, setBalance] = useState(String(account.openingBalance))
   const [streak, setStreak] = useState(String(account.openingStreak))
+  const [pieces, setPieces] = useState(String(account.openingPieces ?? 0))
   const [color, setColor] = useState(account.color)
 
   const submit = () => {
@@ -199,6 +222,7 @@ function EditAccountModal({
       plan,
       openingBalance: Math.max(0, Number(balance) || 0),
       openingStreak: Math.max(0, Number(streak) || 0),
+      openingPieces: Math.max(0, Math.round(Number(pieces) || 0)),
       color,
     })
   }
@@ -216,12 +240,15 @@ function EditAccountModal({
         </select>
       </Field>
       <PlanField plan={plan} setPlan={setPlan} />
-      <div className="grid grid-2" style={{ gap: 12 }}>
+      <div className="grid grid-3" style={{ gap: 12 }}>
         <Field label="Saldo de abertura (pontos)">
           <input type="number" min={0} value={balance} onChange={(e) => setBalance(e.target.value)} />
         </Field>
         <Field label="Sequência de abertura (dias)">
           <input type="number" min={0} value={streak} onChange={(e) => setStreak(e.target.value)} />
+        </Field>
+        <Field label="Peças 🧩 de abertura">
+          <input type="number" min={0} value={pieces} onChange={(e) => setPieces(e.target.value)} />
         </Field>
       </div>
       <Field label="Cor da conta">
