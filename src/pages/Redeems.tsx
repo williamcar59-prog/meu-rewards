@@ -1,11 +1,22 @@
-// Página: Resgates — registrar onde usou os pontos e histórico
+// Página: Resgates — converter pontos, registrar onde usou os pontos e histórico
 
 import { useState } from 'react'
 import { useStore } from '../store'
 import { Empty, Field, Modal, StatCard, fmtPoints } from '../components/ui'
 import { IconGift, IconPlus, IconTrash } from '../components/Icons'
-import { redeemSummary } from '../utils/calc'
+import { currentBalance, redeemSummary } from '../utils/calc'
 import { fmtDate, todayISO } from '../utils/dates'
+
+// Valores de resgate do cartão Xbox (Microsoft Rewards BR, consulta em 03/11/2026)
+const GIFT_CARDS = [
+  { label: 'Cartão R$ 5', reais: 5, points: 1120 },
+  { label: 'Cartão R$ 15', reais: 15, points: 2840 },
+  { label: 'Cartão R$ 30', reais: 30, points: 5680 },
+]
+// Personalizado: a cada 1 real usado são 172,1 pontos
+const CUSTOM_POINTS_PER_REAL = 172.1
+const CUSTOM_MIN_REAIS = 25
+const CUSTOM_MAX_REAIS = 350
 
 export function RedeemsPage() {
   const { data, addRedemption, deleteRedemption } = useStore()
@@ -69,6 +80,8 @@ export function RedeemsPage() {
         />
       </div>
 
+      <PointsConverter defaultPoints={currentBalance(data, accId ?? '')} />
+
       <div className="card section-gap" style={{ paddingTop: 6, paddingBottom: 6 }}>
         {redeems.length === 0 ? (
           <Empty
@@ -107,6 +120,73 @@ export function RedeemsPage() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+function PointsConverter({ defaultPoints }: { defaultPoints: number }) {
+  const [text, setText] = useState(defaultPoints > 0 ? String(defaultPoints) : '')
+
+  const pts = Math.max(0, Math.floor(Number(text) || 0))
+  // Personalizado: 172,1 pts por R$ 1 — valor cheio (sem centavos, arredondado pra baixo)
+  const customReais = Math.floor(pts / CUSTOM_POINTS_PER_REAL)
+  const customMinPts = Math.ceil(CUSTOM_MIN_REAIS * CUSTOM_POINTS_PER_REAL)
+  const customMaxPts = Math.ceil(CUSTOM_MAX_REAIS * CUSTOM_POINTS_PER_REAL)
+
+  let customSub: string
+  if (pts === 0) customSub = '172,1 pts por R$ 1'
+  else if (pts < customMinPts) customSub = `faltam ${fmtPoints(customMinPts - pts)} pts p/ mínimo`
+  else if (pts > customMaxPts) customSub = `máx. R$ ${CUSTOM_MAX_REAIS} por resgate`
+  else customSub = '172,1 pts por R$ 1'
+
+  return (
+    <div className="card section-gap">
+      <h3>Converter pontos</h3>
+      <p className="muted" style={{ marginTop: -2 }}>
+        Quanto valem seus pontos em reais — resultado cheio, sem centavos.
+      </p>
+
+      <label className="field" style={{ maxWidth: 340, marginBottom: 14 }}>
+        <span>Pontos</span>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={text}
+          placeholder="ex.: 5.680"
+          onChange={(e) => setText(e.target.value)}
+        />
+      </label>
+
+      <div className="grid grid-4">
+        <div className="stat-card">
+          <div className="stat-label">Personalizado</div>
+          <div className="stat-value">R$ {customReais.toLocaleString('pt-BR')}</div>
+          <div className="stat-sub">{customSub}</div>
+        </div>
+        {GIFT_CARDS.map((c) => {
+          const count = Math.floor(pts / c.points)
+          return (
+            <div className="stat-card" key={c.reais}>
+              <div className="stat-label">{c.label}</div>
+              <div className="stat-value">{count} un.</div>
+              <div className="stat-sub">
+                {count > 0
+                  ? `${fmtPoints(c.points)} pts cada`
+                  : pts > 0
+                    ? `faltam ${fmtPoints(c.points - pts)} pts`
+                    : `${fmtPoints(c.points)} pts cada`}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="muted" style={{ marginBottom: 0, marginTop: 12 }}>
+        Personalizado: mínimo R$ {CUSTOM_MIN_REAIS} ({fmtPoints(customMinPts)} pts) e máximo R${' '}
+        {CUSTOM_MAX_REAIS} ({fmtPoints(customMaxPts)} pts) por resgate · 1 real = 172,1 pontos.
+        Cartões fixos conforme tabela oficial da Microsoft (consulta em 03/11/2026).
+      </p>
     </div>
   )
 }
