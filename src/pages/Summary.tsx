@@ -86,16 +86,16 @@ function AccountCard({
   return (
     <div className="card section-gap">
       <div className="flex-between">
-        <div className="row" style={{ gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <span className="account-dot" style={{ background: account.color }} />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 600 }}>{account.name}</div>
             <div className="muted">
               {account.region} · {PLAN_LABELS[account.plan]}
             </div>
           </div>
         </div>
-        <div className="row" style={{ gap: 8, flex: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
           <span className="pill">🔥 {streak.current} dias</span>
           {streak.todayDone ? (
             <span className="pill green">✓ Hoje</span>
