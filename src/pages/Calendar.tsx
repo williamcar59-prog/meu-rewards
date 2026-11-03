@@ -9,6 +9,7 @@ import { fmtPoints, StatCard } from '../components/ui'
 import {
   checkedInOn,
   currentBalance,
+  dailyGain,
   monthLabelPt,
   monthlyReport,
   monthBounds,
@@ -136,16 +137,19 @@ export function CalendarPage() {
               const isToday = iso === today
               const check = data.checkIns.find((c) => c.accountId === accId && c.date === iso)
               const redeemed = redemptionsOn(data, accId, iso)
+              const gain = dailyGain(data, accId, iso)
               return (
                 <button
                   key={iso}
                   disabled={future}
                   onClick={() => setCheckDate(iso)}
                   title={
-                    redeemed > 0
-                      ? `Resgate de ${fmtPoints(redeemed)} pontos`
-                      : done
-                        ? 'Check-in feito'
+                    done
+                      ? `Ganho do dia: ${gain !== null && gain >= 0 ? '+' : ''}${fmtPoints(gain ?? 0)} pts${
+                          redeemed > 0 ? ` · Resgate de ${fmtPoints(redeemed)} pts` : ''
+                        }`
+                      : redeemed > 0
+                        ? `Resgate de ${fmtPoints(redeemed)} pontos`
                         : undefined
                   }
                   style={{
@@ -179,8 +183,21 @@ export function CalendarPage() {
                     {Number(iso.slice(8))}
                   </span>
                   {done && (
-                    <span style={{ fontSize: 10, lineHeight: 1, color: 'var(--text-secondary)' }}>
-                      {fmtPoints(check!.balance)}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        lineHeight: 1,
+                        fontWeight: 700,
+                        color:
+                          (gain ?? 0) > 0
+                            ? 'var(--success)'
+                            : (gain ?? 0) < 0
+                              ? 'var(--danger)'
+                              : 'var(--text-secondary)',
+                      }}
+                    >
+                      {(gain ?? 0) > 0 ? '+' : ''}
+                      {fmtPoints(gain ?? 0)}
                     </span>
                   )}
                   {(check?.pieces ?? 0) > 0 && (
@@ -208,6 +225,7 @@ export function CalendarPage() {
             style={{ marginTop: 10, marginBottom: 0, display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12 }}
           >
             <span>Verde = check-in feito</span>
+            <span style={{ color: 'var(--success)' }}>±n = ganho do dia</span>
             <span>🧩 = peças do dia</span>
             <span style={{ color: 'var(--danger)' }}>🎁 = resgate</span>
           </div>
@@ -320,23 +338,29 @@ function RecentCheckIns({ accountId }: { accountId: string }) {
 
   return (
     <div>
-      {list.map((c) => (
-        <div key={c.id} className="entry">
-          <span className="entry-points pos">{fmtPoints(c.balance)}</span>
-          <span className="entry-label">
-            {c.date.split('-').reverse().join('/')}
-            {(c.pieces ?? 0) > 0 && <span className="muted"> · 🧩 {c.pieces}</span>}
-          </span>
-          <button
-            className="btn icon-only small"
-            title="Excluir"
-            onClick={() => deleteCheckIn(c.id)}
-            style={{ color: 'var(--danger)' }}
-          >
-            🗑
-          </button>
-        </div>
-      ))}
+      {list.map((c) => {
+        const gain = dailyGain(data, accountId, c.date) ?? 0
+        return (
+          <div key={c.id} className="entry" title={`Saldo no dia: ${fmtPoints(c.balance)} pts`}>
+            <span className={`entry-points ${gain >= 0 ? 'pos' : 'neg'}`}>
+              {gain > 0 ? '+' : ''}
+              {fmtPoints(gain)}
+            </span>
+            <span className="entry-label">
+              {c.date.split('-').reverse().join('/')}
+              {(c.pieces ?? 0) > 0 && <span className="muted"> · 🧩 {c.pieces}</span>}
+            </span>
+            <button
+              className="btn icon-only small"
+              title="Excluir"
+              onClick={() => deleteCheckIn(c.id)}
+              style={{ color: 'var(--danger)' }}
+            >
+              🗑
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

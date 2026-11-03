@@ -52,6 +52,19 @@ export function checkedInOn(data: AppData, accountId: string, date: string): boo
   return data.checkIns.some((c) => c.accountId === accountId && c.date === date)
 }
 
+/**
+ * Ganho de pontos em um dia (o que foi somado NAQUELE dia, não o saldo acumulado).
+ * = saldo do check-in do dia − saldo conhecido no dia anterior + resgates do próprio dia
+ *   (o saldo do dia já desconta o resgate; devolvemos pra mostrar só o ganho).
+ * Retorna null se não houver check-in no dia.
+ */
+export function dailyGain(data: AppData, accountId: string, date: string): number | null {
+  const check = data.checkIns.find((c) => c.accountId === accountId && c.date === date)
+  if (!check) return null
+  const prev = balanceAt(data, accountId, addDays(date, -1))
+  return check.balance - prev + redemptionsOn(data, accountId, date)
+}
+
 // ---------------------------------------------------------------- Sequência
 
 function streakEndingBefore(
