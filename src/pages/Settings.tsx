@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useStore } from '../store'
-import { Account, AppData } from '../types'
+import { Account, AppData, APP_VERSION } from '../types'
 import { GamePassPlan, PLAN_LABELS } from '../data/rewardsTable'
 import { Field, Modal } from '../components/ui'
 import { IconPlus, IconTrash } from '../components/Icons'
@@ -26,6 +26,43 @@ export function SettingsPage() {
       <AppearanceSection data={data} setSettings={setSettings} />
       <NotifySection data={data} setSettings={setSettings} />
       <DataSection />
+      <AboutSection />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------- Sobre
+
+function AboutSection() {
+  const builtAt = new Date(__BUILD_TIME__)
+
+  return (
+    <div className="card section-gap">
+      <h3>Sobre o app</h3>
+      <div className="grid grid-3">
+        <div className="stat-card">
+          <div className="stat-label">Versão do app</div>
+          <div className="stat-value">{__APP_VERSION__}</div>
+          <div className="stat-sub">Meu Rewards</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Versão dos dados</div>
+          <div className="stat-value">{APP_VERSION}</div>
+          <div className="stat-sub">formato do backup</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Build</div>
+          <div className="stat-value" style={{ fontSize: 17 }}>
+            {builtAt.toLocaleDateString('pt-BR')}
+          </div>
+          <div className="stat-sub">{builtAt.toLocaleTimeString('pt-BR')}</div>
+        </div>
+      </div>
+      <p className="muted" style={{ marginBottom: 0, marginTop: 12 }}>
+        Se a versão ou a data do build não baterem com a última publicada, seu app está desatualizado
+        — feche e abra de novo (ou atualize a página) para baixar a versão nova. Em celular, use o
+        app instalado (PWA) para sempre pegar a versão mais recente.
+      </p>
     </div>
   )
 }

@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import pkg from './package.json'
 
 export default defineConfig({
   base: './',
+  // Versão do app (package.json) e data/hora do build — aparecem em Configurações
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   server: {
     // 5176: 5173/5174 são dos outros projetos (Card Games, SaveLoot)
     port: 5176,
