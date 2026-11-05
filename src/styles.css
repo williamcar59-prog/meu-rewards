@@ -297,6 +297,50 @@ body {
   padding: 6px;
 }
 
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ---------- Escala da interface (Configurações → tamanho do texto) ---------- */
+
+.linha-escala {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.linha-escala input[type='range'] {
+  flex: 1;
+  min-width: 120px;
+  height: 26px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.linha-escala .btn {
+  flex: 0 0 auto;
+  min-width: 46px;
+  justify-content: center;
+}
+
+.escala-valor {
+  flex: 0 0 auto;
+  min-width: 54px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Formulários ---------- */
 
 label.field {

@@ -13,6 +13,13 @@ import {
   showNotification,
 } from '../utils/notify'
 import { fsApiSupported } from '../utils/storage'
+import {
+  ESCALA_MAX,
+  ESCALA_MIN,
+  ESCALA_PADRAO,
+  lerEscala,
+  salvarEscala,
+} from '../utils/escala'
 
 export function SettingsPage() {
   const { data, setSettings } = useStore()
@@ -24,6 +31,7 @@ export function SettingsPage() {
 
       <AccountsSection />
       <AppearanceSection data={data} setSettings={setSettings} />
+      <FontSizeSection />
       <NotifySection data={data} setSettings={setSettings} />
       <DataSection />
       <AboutSection />
@@ -329,6 +337,71 @@ function AppearanceSection({
           🌙 Escuro
         </button>
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------- Tamanho do texto
+
+function FontSizeSection() {
+  const [escala, setEscala] = useState(() => lerEscala())
+
+  return (
+    <div className="card section-gap">
+      <h3>Tamanho do texto</h3>
+      <p className="muted" style={{ marginTop: -2 }}>
+        Aumenta ou diminui o texto de <strong>todo</strong> o app — títulos, botões, listas e
+        números. A escolha fica guardada <strong>neste aparelho</strong>: o celular e o PC podem
+        ficar cada um do jeito do seu dono, e o tamanho já é aplicado na abertura, antes da tela
+        aparecer.
+      </p>
+
+      <div className="linha-escala" style={{ maxWidth: 420 }}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setEscala(salvarEscala(escala - 5))}
+          disabled={escala <= ESCALA_MIN}
+          aria-label="Diminuir o texto"
+        >
+          A−
+        </button>
+        <input
+          type="range"
+          min={ESCALA_MIN}
+          max={ESCALA_MAX}
+          step={5}
+          value={escala}
+          onChange={(e) => setEscala(salvarEscala(Number(e.target.value)))}
+          aria-label="Tamanho do texto"
+        />
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setEscala(salvarEscala(escala + 5))}
+          disabled={escala >= ESCALA_MAX}
+          aria-label="Aumentar o texto"
+        >
+          A+
+        </button>
+        <strong className="escala-valor">{escala}%</strong>
+      </div>
+
+      <p className="muted" style={{ marginTop: 10, marginBottom: 0 }}>
+        {ESCALA_MIN}% a {ESCALA_MAX}% · padrão {ESCALA_PADRAO}%
+        {escala !== ESCALA_PADRAO && (
+          <>
+            {' · '}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => setEscala(salvarEscala(ESCALA_PADRAO))}
+            >
+              voltar ao padrão
+            </button>
+          </>
+        )}
+      </p>
     </div>
   )
 }
