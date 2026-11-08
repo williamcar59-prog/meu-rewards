@@ -157,6 +157,24 @@ export function puzzleProgress(data: AppData, accountId: string | null): PuzzleP
   return { total, filled, completed, toNext, isComplete }
 }
 
+/** Datas em que o total de peças cruzou um múltiplo de 12 — o dia em que
+ *  o troféu fechou (+1.000 pts). Percorre os check-ins em ordem cronológica;
+ *  as peças de abertura não têm data, então só contam como base do total. */
+export function trophyDays(data: AppData, accountId: string): Set<string> {
+  const days = new Set<string>()
+  let total = data.accounts.find((a) => a.id === accountId)?.openingPieces || 0
+  const list = data.checkIns
+    .filter((c) => c.accountId === accountId)
+    .slice()
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+  for (const c of list) {
+    const before = total
+    total += c.pieces || 0
+    if (Math.floor(total / PIECE_GOAL) > Math.floor(before / PIECE_GOAL)) days.add(c.date)
+  }
+  return days
+}
+
 export function piecesInMonth(data: AppData, accountId: string, first: string, last: string): number {
   return data.checkIns
     .filter((c) => c.accountId === accountId && c.date >= first && c.date <= last)

@@ -7,6 +7,55 @@ import { fmtPoints } from './ui'
 
 const CELLS = 12
 
+/** Troféu mini (sem fundo) — marca no calendário o dia em que o troféu fechou.
+ *  Mesmas formas do TrophySvg, com cores chapadas para não colidir os IDs
+ *  dos gradientes quando aparece várias vezes na mesma página. */
+export function MiniTrophy({ size = 13 }: { size?: number }) {
+  const w = Math.round(size * 1.15)
+  return (
+    <svg
+      viewBox="88 62 224 195"
+      width={w}
+      height={size}
+      style={{ display: 'inline-block', verticalAlign: '-2px' }}
+      aria-hidden="true"
+    >
+      {/* alças */}
+      <path
+        d="M140 78 C104 78 92 100 99 120 C106 140 124 150 142 147"
+        fill="none"
+        stroke="#e8b93b"
+        strokeWidth="13"
+        strokeLinecap="round"
+      />
+      <path
+        d="M260 78 C296 78 308 100 301 120 C294 140 276 150 258 147"
+        fill="none"
+        stroke="#e8b93b"
+        strokeWidth="13"
+        strokeLinecap="round"
+      />
+      {/* copo */}
+      <path
+        d="M138 66 H262 V112 C262 154 236 182 200 182 C164 182 138 154 138 112 Z"
+        fill="#f7c948"
+      />
+      <path d="M138 66 H262 V80 H138 Z" fill="#ffffff" opacity="0.35" />
+      {/* estrela */}
+      <polygon
+        points="200,76 208.2,96.7 230.4,98.1 213.3,112.3 218.8,133.9 200,122 181.2,133.9 186.7,112.3 169.6,98.1 191.8,96.7"
+        fill="#8a5a00"
+        opacity="0.85"
+      />
+      {/* haste + base */}
+      <path d="M191 182 h18 v26 h-18 z" fill="#f7c948" />
+      <path d="M174 208 H226 L237 233 H163 Z" fill="#f7c948" />
+      <rect x="150" y="233" width="100" height="20" rx="5" fill="#f7c948" />
+      <rect x="150" y="233" width="100" height="7" rx="3.5" fill="#ffffff" opacity="0.3" />
+    </svg>
+  )
+}
+
 /** Troféu vetorial (viewBox 400×300 = proporção 4:3). */
 function TrophySvg() {
   return (

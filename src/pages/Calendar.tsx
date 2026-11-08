@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useStore } from '../store'
 import { CheckInModal } from '../components/CheckInModal'
-import { PuzzleTrophy } from '../components/PuzzleTrophy'
+import { MiniTrophy, PuzzleTrophy } from '../components/PuzzleTrophy'
 import { IconCheck, IconChevron } from '../components/Icons'
 import { fmtPoints, StatCard } from '../components/ui'
 import {
@@ -18,6 +18,7 @@ import {
   redemptionsBetween,
   redemptionsOn,
   streakOf,
+  trophyDays,
 } from '../utils/calc'
 import { todayISO } from '../utils/dates'
 import { PLAN_LABELS } from '../data/rewardsTable'
@@ -63,6 +64,8 @@ export function CalendarPage() {
   const monthRedemptions = redemptionsBetween(data, accId, monthFirst, monthLast)
   const streak = streakOf(data, accId)
   const cells = buildGrid(year, month)
+  const trophyDates = trophyDays(data, accId)
+  const monthTrophies = [...trophyDates].filter((d) => d >= monthFirst && d <= monthLast).length
 
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
   const canGoNext = !isCurrentMonth
@@ -138,20 +141,20 @@ export function CalendarPage() {
               const check = data.checkIns.find((c) => c.accountId === accId && c.date === iso)
               const redeemed = redemptionsOn(data, accId, iso)
               const gain = dailyGain(data, accId, iso)
+              const trophy = trophyDates.has(iso)
+              const tips: string[] = []
+              if (done)
+                tips.push(
+                  `Ganho do dia: ${gain !== null && gain >= 0 ? '+' : ''}${fmtPoints(gain ?? 0)} pts`,
+                )
+              if (redeemed > 0) tips.push(`Resgate de ${fmtPoints(redeemed)} pontos`)
+              if (trophy) tips.push('Troféu fechado! +1.000 pts')
               return (
                 <button
                   key={iso}
                   disabled={future}
                   onClick={() => setCheckDate(iso)}
-                  title={
-                    done
-                      ? `Ganho do dia: ${gain !== null && gain >= 0 ? '+' : ''}${fmtPoints(gain ?? 0)} pts${
-                          redeemed > 0 ? ` · Resgate de ${fmtPoints(redeemed)} pts` : ''
-                        }`
-                      : redeemed > 0
-                        ? `Resgate de ${fmtPoints(redeemed)} pontos`
-                        : undefined
-                  }
+                  title={tips.length > 0 ? tips.join(' · ') : undefined}
                   style={{
                     border: `1px solid ${
                       redeemed > 0
@@ -203,6 +206,21 @@ export function CalendarPage() {
                   {(check?.pieces ?? 0) > 0 && (
                     <span style={{ fontSize: 10, lineHeight: 1 }}>🧩 {check!.pieces}</span>
                   )}
+                  {trophy && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        fontSize: 10,
+                        lineHeight: 1,
+                        fontWeight: 700,
+                      }}
+                      title="Troféu fechado! +1.000 pts"
+                    >
+                      <MiniTrophy size={13} /> +1.000
+                    </span>
+                  )}
                   {redeemed > 0 && (
                     <span
                       style={{
@@ -227,6 +245,9 @@ export function CalendarPage() {
             <span>Verde = check-in feito</span>
             <span style={{ color: 'var(--success)' }}>±n = ganho do dia</span>
             <span>🧩 = peças do dia</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <MiniTrophy size={13} /> = troféu fechado (+1.000)
+            </span>
             <span style={{ color: 'var(--danger)' }}>🎁 = resgate</span>
           </div>
           <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
@@ -275,6 +296,12 @@ export function CalendarPage() {
 
             <p className="muted" style={{ marginBottom: 0, marginTop: 12 }}>
               {report.daysChecked} dia(s) com check-in · 🧩 {report.pieces} peça(s) no mês
+              {monthTrophies > 0 && (
+                <>
+                  {' · '}
+                  <MiniTrophy size={13} /> {monthTrophies} troféu(s) fechado(s)
+                </>
+              )}
             </p>
 
             {monthRedemptions.length > 0 && (
@@ -326,6 +353,7 @@ export function CalendarPage() {
 
 function RecentCheckIns({ accountId }: { accountId: string }) {
   const { data, deleteCheckIn } = useStore()
+  const trophies = trophyDays(data, accountId)
   const list = data.checkIns
     .filter((c) => c.accountId === accountId)
     .slice()
@@ -349,6 +377,20 @@ function RecentCheckIns({ accountId }: { accountId: string }) {
             <span className="entry-label">
               {c.date.split('-').reverse().join('/')}
               {(c.pieces ?? 0) > 0 && <span className="muted"> · 🧩 {c.pieces}</span>}
+              {trophies.has(c.date) && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    marginLeft: 6,
+                    fontWeight: 700,
+                  }}
+                  title="Troféu fechado! +1.000 pts"
+                >
+                  <MiniTrophy size={13} /> +1.000
+                </span>
+              )}
             </span>
             <button
               className="btn icon-only small"
