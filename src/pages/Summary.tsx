@@ -8,7 +8,7 @@ import { fmtPoints } from '../components/ui'
 import {
   currentBalance,
   monthlyReport,
-  PIECE_GOAL,
+  PIECE_REWARD,
   puzzleProgress,
   redeemSummary,
   streakOf,
@@ -131,10 +131,11 @@ function AccountCard({
         </div>
         <div className="stat-card">
           <div className="stat-label">Peças 🧩</div>
-          <div className="stat-value">{puzzle.total}</div>
+          <div className="stat-value">{puzzle.filled}</div>
           <div className="stat-sub">
-            troféu {puzzle.filled}/{PIECE_GOAL}
-            {puzzle.completed > 0 && ` · ${puzzle.completed} prêmio(s)`}
+            {puzzle.completed > 0
+              ? `${puzzle.completed} troféu(s) · +${fmtPoints(puzzle.completed * PIECE_REWARD)} pts`
+              : `faltam ${puzzle.toNext} p/ troféu`}
           </div>
         </div>
       </div>

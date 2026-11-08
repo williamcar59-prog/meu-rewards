@@ -19,7 +19,7 @@ import {
   currentBalance,
   monthlyNetSeries,
   monthlyReport,
-  PIECE_GOAL,
+  PIECE_REWARD,
   puzzleProgress,
   redeemSummary,
 } from '../utils/calc'
@@ -90,8 +90,12 @@ export function StatsOverviewPage() {
         <StatCard label="Resgates" value={`${redeems.count}`} sub={`${fmtPoints(redeems.totalPoints)} pts`} />
         <StatCard
           label="Peças 🧩"
-          value={`${puzzle.total}`}
-          sub={`troféu ${puzzle.filled}/${PIECE_GOAL} · ${puzzle.completed} completo(s)`}
+          value={`${puzzle.filled}`}
+          sub={
+            puzzle.completed > 0
+              ? `${puzzle.completed} troféu(s) · +${fmtPoints(puzzle.completed * PIECE_REWARD)} pts`
+              : `faltam ${puzzle.toNext} p/ troféu`
+          }
         />
       </div>
 

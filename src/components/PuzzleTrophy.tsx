@@ -98,7 +98,7 @@ export function PuzzleTrophy({ accountId }: { accountId: string }) {
       <div className="flex-between">
         <h3 className="mt-0 mb-0">Troféu de peças</h3>
         <span className="pill">
-          🧩 {p.total} / {PIECE_GOAL}
+          🧩 {p.filled} / {PIECE_GOAL}
         </span>
       </div>
 
