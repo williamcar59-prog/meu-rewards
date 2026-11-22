@@ -65,6 +65,50 @@ export function dailyGain(data: AppData, accountId: string, date: string): numbe
   return check.balance - prev + redemptionsOn(data, accountId, date)
 }
 
+/**
+ * Dias em aberto (check-in esquecido): entre a criação da conta e o primeiro
+ * check-in, ou entre dois check-ins consecutivos, existem dias sem registro.
+ * Retorna data → saldo ESTIMADO, interpolado linearmente entre os vizinhos
+ * (descontando os resgates do meio, para o ganho ficar bem distribuído).
+ * Preencher um desses dias divide o salto de 2 dias — o saldo final NÃO muda.
+ */
+export function openDays(data: AppData, accountId: string): Map<string, number> {
+  const acc = data.accounts.find((a) => a.id === accountId)
+  const out = new Map<string, number>()
+  if (!acc) return out
+
+  const ins = accountCheckIns(data, accountId)
+  const resg = data.redemptions.filter((r) => r.accountId === accountId)
+  // âncoras de saldo conhecido: criação da conta + cada check-ins, em ordem
+  // de data (check-ins podem vir antes da criação, ao retroagir o histórico).
+  // Se já existe check-in na data da criação, ele manda — não duplica âncora.
+  const anchors: { date: string; balance: number }[] = [
+    ...ins.map((c) => ({ date: c.date, balance: c.balance })),
+    ...(ins.some((c) => c.date === acc.createdAt)
+      ? []
+      : [{ date: acc.createdAt, balance: acc.openingBalance }]),
+  ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  const sumResg = (from: string, to: string) =>
+    resg.filter((r) => r.date > from && r.date <= to).reduce((s, r) => s + r.points, 0)
+
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const a = anchors[i]
+    const c = anchors[i + 1]
+    const span = daysBetween(a.date, c.date)
+    if (span <= 1) continue // dias consecutivos: nada em aberto
+    // ganho bruto estimado do intervalo = variação do saldo + resgates no meio
+    const gross = c.balance - a.balance + sumResg(a.date, c.date)
+    const share = gross / span
+    for (let k = 1; k < span; k++) {
+      const d = addDays(a.date, k)
+      if (ins.some((x) => x.date === d)) continue // âncoras já cobrem o dia
+      const est = Math.round(a.balance + share * k - sumResg(a.date, d))
+      out.set(d, Math.max(0, est))
+    }
+  }
+  return out
+}
+
 // ---------------------------------------------------------------- Sequência
 
 function streakEndingBefore(

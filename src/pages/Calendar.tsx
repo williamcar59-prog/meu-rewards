@@ -14,6 +14,7 @@ import {
   monthlyReport,
   monthBounds,
   nextMonth,
+  openDays,
   prevMonth,
   redemptionsBetween,
   redemptionsOn,
@@ -65,6 +66,7 @@ export function CalendarPage() {
   const streak = streakOf(data, accId)
   const cells = buildGrid(year, month)
   const trophyDates = trophyDays(data, accId)
+  const openMap = openDays(data, accId) // dias em aberto → saldo estimado
   const monthTrophies = [...trophyDates].filter((d) => d >= monthFirst && d <= monthLast).length
 
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
@@ -142,10 +144,15 @@ export function CalendarPage() {
               const redeemed = redemptionsOn(data, accId, iso)
               const gain = dailyGain(data, accId, iso)
               const trophy = trophyDates.has(iso)
+              const openEst = !done && !future ? openMap.get(iso) : undefined
               const tips: string[] = []
               if (done)
                 tips.push(
                   `Ganho do dia: ${gain !== null && gain >= 0 ? '+' : ''}${fmtPoints(gain ?? 0)} pts`,
+                )
+              if (openEst !== undefined)
+                tips.push(
+                  `Dia em aberto · saldo estimado: ${fmtPoints(openEst)} pts — toque para preencher`,
                 )
               if (redeemed > 0) tips.push(`Resgate de ${fmtPoints(redeemed)} pontos`)
               if (trophy) tips.push('Troféu fechado! +1.000 pts')
@@ -156,18 +163,23 @@ export function CalendarPage() {
                   onClick={() => setCheckDate(iso)}
                   title={tips.length > 0 ? tips.join(' · ') : undefined}
                   style={{
-                    border: `1px solid ${
-                      redeemed > 0
-                        ? 'var(--danger)'
-                        : isToday
-                          ? 'var(--accent)'
-                          : 'var(--border)'
-                    }`,
+                    border:
+                      openEst !== undefined && redeemed === 0
+                        ? '1px dashed var(--warning)'
+                        : `1px solid ${
+                            redeemed > 0
+                              ? 'var(--danger)'
+                              : isToday
+                                ? 'var(--accent)'
+                                : 'var(--border)'
+                          }`,
                     background: done
                       ? 'color-mix(in srgb, var(--success) 14%, transparent)'
                       : redeemed > 0
                         ? 'color-mix(in srgb, var(--danger) 10%, transparent)'
-                        : 'var(--bg-card)',
+                        : openEst !== undefined
+                          ? 'color-mix(in srgb, var(--warning) 12%, transparent)'
+                          : 'var(--bg-card)',
                     borderRadius: 8,
                     padding: '6px 2px',
                     cursor: future ? 'default' : 'pointer',
@@ -201,6 +213,19 @@ export function CalendarPage() {
                     >
                       {(gain ?? 0) > 0 ? '+' : ''}
                       {fmtPoints(gain ?? 0)}
+                    </span>
+                  )}
+                  {!done && openEst !== undefined && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        lineHeight: 1,
+                        fontWeight: 700,
+                        letterSpacing: 0.2,
+                        color: 'var(--warning)',
+                      }}
+                    >
+                      aberto
                     </span>
                   )}
                   {(check?.pieces ?? 0) > 0 && (
@@ -243,6 +268,7 @@ export function CalendarPage() {
             style={{ marginTop: 10, marginBottom: 0, display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12 }}
           >
             <span>Verde = check-in feito</span>
+            <span style={{ color: 'var(--warning)' }}>tracejado = dia em aberto</span>
             <span style={{ color: 'var(--success)' }}>±n = ganho do dia</span>
             <span>🧩 = peças do dia</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -251,7 +277,8 @@ export function CalendarPage() {
             <span style={{ color: 'var(--danger)' }}>🎁 = resgate</span>
           </div>
           <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
-            Toque em um dia para registrar ou editar o check-in.
+            Toque em um dia para registrar ou editar o check-in — dias em aberto já abrem com saldo
+            estimado.
           </p>
         </div>
 
@@ -345,7 +372,12 @@ export function CalendarPage() {
       </div>
 
       {checkDate && (
-        <CheckInModal accountId={accId} date={checkDate} onClose={() => setCheckDate(null)} />
+        <CheckInModal
+          accountId={accId}
+          date={checkDate}
+          estimated={openMap.get(checkDate)}
+          onClose={() => setCheckDate(null)}
+        />
       )}
     </div>
   )

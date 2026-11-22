@@ -9,10 +9,13 @@ import { Field, Modal } from './ui'
 export function CheckInModal({
   accountId,
   date,
+  estimated,
   onClose,
 }: {
   accountId: string
   date: string
+  /** Saldo ESTIMADO para dias em aberto (check-in esquecido) */
+  estimated?: number
   onClose: () => void
 }) {
   const { data, upsertCheckIn } = useStore()
@@ -20,9 +23,16 @@ export function CheckInModal({
   const account = data.accounts.find((a) => a.id === accountId)
 
   const [balance, setBalance] = useState(
-    existing ? String(existing.balance) : String(currentBalance(data, accountId)),
+    existing
+      ? String(existing.balance)
+      : estimated !== undefined
+        ? String(estimated)
+        : String(currentBalance(data, accountId)),
   )
   const [pieces, setPieces] = useState(existing ? String(existing.pieces ?? 0) : '0')
+
+  const isToday = date === todayISO()
+  const isEstimate = !existing && estimated !== undefined
 
   const submit = () => {
     const b = Number(balance)
@@ -31,8 +41,6 @@ export function CheckInModal({
     onClose()
   }
 
-  const isToday = date === todayISO()
-
   return (
     <Modal
       title={`Check-in${isToday ? ' de hoje' : ` — ${date.split('-').reverse().join('/')}`}${
@@ -40,7 +48,7 @@ export function CheckInModal({
       }`}
       onClose={onClose}
     >
-      <Field label="Saldo atual (pontos)">
+      <Field label={isToday ? 'Saldo atual (pontos)' : 'Saldo do dia (pontos)'}>
         <input
           type="number"
           min={0}
@@ -50,7 +58,20 @@ export function CheckInModal({
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
       </Field>
-      <Field label="Peças de quebra-cabeça ganhas hoje">
+      {isEstimate && (
+        <p
+          style={{
+            margin: '0 0 10px',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--warning)',
+          }}
+        >
+          ⚠ Dia em aberto — este valor é uma estimativa entre os check-ins vizinhos. Confirme e
+          ajuste se o saldo real for diferente.
+        </p>
+      )}
+      <Field label={isToday ? 'Peças de quebra-cabeça ganhas hoje' : 'Peças de quebra-cabeça ganhas no dia'}>
         <input
           type="number"
           min={0}
