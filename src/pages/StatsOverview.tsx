@@ -24,10 +24,12 @@ import {
   redeemSummary,
 } from '../utils/calc'
 import { fmtPoints, StatCard } from '../components/ui'
+import { CompareAccounts } from '../components/CompareAccounts'
 
 export function StatsOverviewPage() {
   const { data } = useStore()
   const [accountId, setAccountId] = useState(data.accounts[0]?.id ?? '')
+  const [showCompare, setShowCompare] = useState(false)
 
   if (data.accounts.length === 0) {
     return (
@@ -42,6 +44,7 @@ export function StatsOverviewPage() {
 
   const account = data.accounts.find((a) => a.id === accountId) ?? data.accounts[0]
   const accId = account.id
+  const compare = showCompare && data.accounts.length > 1
 
   const now = new Date()
   const month = monthlyReport(data, accId, now.getFullYear(), now.getMonth() + 1)
@@ -66,7 +69,10 @@ export function StatsOverviewPage() {
       <div className="flex-between">
         <div>
           <h1 className="page-title">Estatísticas</h1>
-          <p className="page-sub">Escolha a conta para ver o desempenho dela</p>
+          <p className="page-sub">
+            Escolha a conta para ver o desempenho dela — com 2+ contas, abra o Comparativo para ver
+            todas lado a lado
+          </p>
         </div>
       </div>
 
@@ -75,15 +81,29 @@ export function StatsOverviewPage() {
           {data.accounts.map((a) => (
             <button
               key={a.id}
-              className={`tab${a.id === accId ? ' active' : ''}`}
-              onClick={() => setAccountId(a.id)}
+              className={`tab${a.id === accId && !compare ? ' active' : ''}`}
+              onClick={() => {
+                setAccountId(a.id)
+                setShowCompare(false)
+              }}
             >
+              <span className="account-dot" style={{ background: a.color }} />
               {a.name}
             </button>
           ))}
+          <button
+            className={`tab${compare ? ' active' : ''}`}
+            onClick={() => setShowCompare(true)}
+          >
+            📊 Comparativo
+          </button>
         </div>
       )}
 
+      {compare ? (
+        <CompareAccounts />
+      ) : (
+        <>
       <div className="grid grid-4 section-gap">
         <StatCard label="Ganho do mês" value={`+${fmtPoints(month.netEarned)}`} sub="líquido" />
         <StatCard label="Saldo" value={fmtPoints(bal)} sub="pontos" />
@@ -163,6 +183,8 @@ export function StatsOverviewPage() {
           Os pontos vermelhos marcam os dias em que você usou pontos.
         </p>
       </div>
+        </>
+      )}
     </div>
   )
 }
